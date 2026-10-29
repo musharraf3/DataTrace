@@ -19,6 +19,7 @@ build/
 dist/
 .coverage
 htmlcov/
+.build-tmp/
 
 # Local execution data
 *.duckdb

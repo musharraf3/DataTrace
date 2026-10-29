@@ -1,6 +1,6 @@
 # Build plan and current status
 
-Prepared October 28, 2026 Pacific. These are remaining targets, not completed work.
+Updated October 29, 2026 Pacific. Remaining schedule items are targets, not completion claims.
 
 ## Current state
 
@@ -8,9 +8,11 @@ Prepared October 28, 2026 Pacific. These are remaining targets, not completed wo
 - Meta API account: owner confirms it exists.
 - Cerebral Valley event, guide, waiver, submission fields, announcements, Discord gate, and livestream page: reviewed.
 - Local Git repository and planning documents: initialized in this task.
-- GitHub publication: requires authenticated GitHub creation; update once completed.
+- Owner supplied https://github.com/musharraf3/DataTrace ; configured as origin. The GitHub connection returned 404 and listed no accessible installations. Publication is unverified.
 - Credits/billing/key/API request: not verified.
-- Agent, tools, UI, cases, and evaluation runner: not implemented.
+- Implemented locally: bounded SQLite runner, snapshot replay, per-order repair validation, scripted offline diagnostics, 20 synthetic fixtures, Meta Responses tool loop, evidence export, Streamlit UI, and evaluation runner.
+- Live Meta API: mock-tested only; authenticated inference is unverified.
+- DuckDB backend, held-out AI evaluation, and same-model/no-tools comparison: pending.
 - Licensing: project distribution license not selected.
 
 ## Remaining schedule
@@ -31,4 +33,4 @@ DataTrace, rather than RightCall, is the new hackathon project. RightCall was ap
 
 ## Next executable milestone
 
-A minimal Meta request followed by one synthetic duplicate-join investigation whose answer is backed by actual DuckDB results. Finish the deterministic investigation boundary before connecting model-generated tool calls.
+Resolve GitHub access and publish the tested code. Configure the API key locally and run one authenticated Meta investigation, then collect live evaluation results and implement the no-tools comparison. Offline broken-join, growth, and ambiguity paths are available now. The first runner uses SQLite because DuckDB package downloads were unavailable.

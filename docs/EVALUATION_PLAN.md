@@ -1,6 +1,6 @@
 # Evaluation plan
 
-All case counts and thresholds below are planning decisions, not measured results.
+The 20 synthetic fixtures and offline regression runner are implemented. Offline results measure scripted logic, not AI accuracy. Live AI evaluation, the same-model/no-tools comparison, and held-out evaluation remain pending.
 
 ## Proposed 20-case set
 

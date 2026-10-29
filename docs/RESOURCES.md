@@ -18,6 +18,7 @@ Reviewed October 28, 2026 Pacific. Public links may change; partner offers requi
 - [Overview](https://dev.meta.ai/docs/overview)
 - [Quickstart](https://dev.meta.ai/docs/quickstart)
 - [Models](https://dev.meta.ai/docs/models)
+- [Tool calling](https://dev.meta.ai/docs/tool-calling) — implementation reference reviewed October 29
 - [Muse Spark](https://dev.meta.ai/models/muse-spark)
 - [Muse Wonder](https://dev.meta.ai/models/muse-wonder)
 - [Muse Image](https://dev.meta.ai/models/muse-image)

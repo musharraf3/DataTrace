@@ -1,6 +1,10 @@
 # DataTrace project specification
 
-Status: proposed implementation; no completed agent or performance claims.
+Status: first local milestone implemented. Meta integration is mock-tested; authenticated inference and AI performance remain unverified.
+
+## Implementation note — October 29
+
+The first runner uses SQLite authorizer allowlists and VM/time limits; it does not accept DuckDB syntax. DuckDB remains planned. Implemented tools are `query_snapshot` and `verify_correction`; schema and four-way replay are supplied as context. Queries inspect join cardinality, unmatched rows, and date bounds. A Python reference independently checks complete per-order revenue multisets.
 
 ## User and problem
 
@@ -31,7 +35,7 @@ Model-visible inputs must exclude case labels and oracle answers. SQL and datase
 
 ## Planned execution boundaries
 
-Enforce one allowed read-only query per tool call; use an isolated in-memory/synthetic DuckDB environment with external access disabled. Block arbitrary filesystem/network access, writes, extension loading, and attachment. Enforce query time, returned rows, tool steps, and error handling. Validate these controls before exposing model-produced SQL. A prototype process is not a production security boundary.
+The implemented SQLite boundary allows SELECT, reads of the synthetic orders/customers tables, and a short function allowlist. Writes, external-file access, attachments, metadata reads, extension loading, and recursive CTEs are denied. VM/time, returned-row, and model tool-call limits are enforced. A prototype process is not an OS sandbox or production security boundary.
 
 Corrections are candidate SQL statements evaluated separately; never mutate the original snapshots or execute production changes. Verification must check transaction grain, inclusion rules, date bounds, duplicates, and unaffected controls rather than only matching a target total.
 
