@@ -166,7 +166,7 @@ def load_csv(raw, table):
 
 def snapshot_csv(incident, snapshot, table):
     output = io.StringIO(newline="")
-    writer = csv.writer(output)
+    writer = csv.writer(output, lineterminator="\n")
     writer.writerow(ORDER_COLUMNS if table == "orders" else CUSTOMER_COLUMNS)
     writer.writerows(incident.snapshots[snapshot][table])
     return output.getvalue()

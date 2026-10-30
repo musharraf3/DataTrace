@@ -1,6 +1,6 @@
-order_id,customer_id,order_date,status,kind,revenue_cents
-1,1,2026-10-05,paid,sale,10000
-2,2,2026-10-12,paid,sale,20000
-3,3,2026-10-18,paid,sale,30000
-4,1,2026-11-01,paid,sale,4000
-5,2,2026-10-20,pending,sale,9000
+order_id,customer_id,order_date,status,kind,revenue_cents
+1,1,2026-10-05,paid,sale,10000
+2,2,2026-10-12,paid,sale,20000
+3,3,2026-10-18,paid,sale,30000
+4,1,2026-11-01,paid,sale,4000
+5,2,2026-10-20,pending,sale,9000
