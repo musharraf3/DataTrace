@@ -19,11 +19,11 @@ Deadline: **November 4, 2026 at 6 PM Pacific / 9 PM Eastern**. Internal target: 
 - [ ] Public GitHub repository created and accessible without sign-in.
 - [ ] Event contribution dates and newly built features clearly identified.
 - [ ] Meaningful Meta model use is visible in the running product.
-- [ ] Three reproducible demo scenarios work.
+- [x] Offline demo scenarios and custom-input workflow work in automated tests; live model demo remains unverified.
 - [ ] 20-case evaluation completed with honest counts, failures, and cost/latency reporting.
 - [ ] No secrets, employer data, personal records, or unsupported benchmark claims in commits.
 - [ ] Dependencies/assets documented and license obligations met.
-- [ ] Reproduction instructions tested on a fresh environment.
+- [ ] Reproduction instructions tested on a fresh environment (local environment tests pass; fresh network installation remains unverified).
 - [ ] Live product accessible if supplied; never claim an unbuilt feature.
 
 ## Three-minute video plan

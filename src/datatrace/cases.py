@@ -32,13 +32,15 @@ class Incident:
 
 
 def canonical_sql(contract):
+    from .inputs import validate_contract
+    contract = validate_contract(contract)
     if contract["refund_policy"] is None:
         raise ValueError("Refund treatment is missing from the metric definition.")
-    # Only fixed, application-owned ISO dates are used here, never a user SQL fragment.
+    # Contract validation admits ISO dates and enumerated statuses only.
     start, end = contract["start"], contract["end_exclusive"]
     refund = " AND kind <> 'refund'" if contract["refund_policy"] == "exclude" else ""
     return ("SELECT order_id, revenue_cents FROM orders "
-            f"WHERE status = 'paid' AND order_date >= '{start}' "
+            f"WHERE status = '{contract['status']}' AND order_date >= '{start}' "
             f"AND order_date < '{end}'{refund}")
 
 
@@ -94,3 +96,26 @@ def all_cases():
     return [make_case(family, variant) for family in
             ["duplicate_join", "dropped_records", "date_filter", "growth", "ambiguous"]
             for variant in range(4)]
+
+
+def heldout_cases(seed=236):
+    """A versioned stress split with new transactions/distributions, not production validation."""
+    import random
+    rng = random.Random(seed)
+    output = []
+    for case in all_cases():
+        case.case_id = "stress-" + case.case_id
+        # The same order ID has a stable new value across snapshots. Add entirely
+        # new included/excluded rows to expose cancellation and boundary mistakes.
+        values = {row[0]: rng.randint(100, 80000) for row in case.snapshots["previous"]["orders"]}
+        for snapshot in case.snapshots.values():
+            snapshot["orders"] = [(*row[:5], -abs(values.get(row[0], row[5])) if row[4] == "refund"
+                                    else values.get(row[0], row[5])) for row in snapshot["orders"]]
+            snapshot["orders"] += [
+                (101, 1, "2026-09-30", "paid", "sale", 13500),
+                (102, 1, "2026-10-01", "paid", "sale", 1900),
+                (103, 1, "2026-10-31", "paid", "sale", 27300),
+                (104, 1, "2026-10-19", "cancelled", "sale", 91000),
+            ]
+        output.append(case)
+    return output

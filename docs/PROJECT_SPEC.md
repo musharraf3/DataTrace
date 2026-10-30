@@ -1,6 +1,6 @@
 # DataTrace project specification
 
-Status: first local milestone implemented. Meta integration is mock-tested; authenticated inference and AI performance remain unverified.
+Status: local application scope implemented, including custom JSON/CSV inputs, editable contracts/SQL, five demo families, candidate checks, reports/history, CLI, evaluation comparison, and stress cases. Meta integration is mock-tested; authenticated inference and AI performance remain unverified.
 
 ## Implementation note — October 29
 

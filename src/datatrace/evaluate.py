@@ -2,49 +2,107 @@
 
 import argparse
 import json
+import subprocess
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
-from .cases import all_cases
+from .cases import all_cases, heldout_cases
 from .investigator import offline_walkthrough
-from .meta import investigate_meta
+from .meta import MetaClient, investigate_meta, investigate_baseline
+from .reporting import estimate_cost
 
 
-def evaluate(mode="offline", *, client=None):
-    if mode not in {"offline", "meta"}:
-        raise ValueError("Mode must be offline or meta.")
+def evaluate(mode="offline", *, client=None, split="development", cases=None,
+             input_rate=None, output_rate=None):
+    if mode not in {"offline", "meta", "baseline"}:
+        raise ValueError("Mode must be offline, meta, or baseline.")
+    if split not in {"development", "stress"}:
+        raise ValueError("Unknown evaluation split.")
+    selected = cases if cases is not None else (all_cases() if split == "development" else heldout_cases())
+    estimate_cost({}, input_rate, output_rate)  # Validate explicit rates before any paid request.
+    if mode != "offline":
+        client = client or MetaClient()  # Fail before the run if account configuration is missing.
     results = []
-    for case in all_cases():
+    for case in selected:
+        case_started = time.monotonic()
         try:
-            report = offline_walkthrough(case) if mode == "offline" else investigate_meta(case, client=client)
+            report = (offline_walkthrough(case) if mode == "offline" else
+                      investigate_meta(case, client=client) if mode == "meta" else
+                      investigate_baseline(case, client=client))
             repair = report.get("correction_sql") is not None
+            attempted = report.get("model_correction_sql", report.get("correction_sql")) is not None
             results.append({"case_id": case.case_id, "expected": case.expected_classification,
                             "actual": report["classification"], "correct": report["classification"] == case.expected_classification,
                             "repair_proposed": repair,
-                            "inappropriate_repair": repair and case.family in {"growth", "ambiguous"},
+                            "raw_model_correct": report.get("model_classification") == case.expected_classification if mode != "offline" else None,
+                            "inappropriate_repair": attempted and case.family in {"growth", "ambiguous"},
                             "repair_verified": (report.get("validation") or {}).get("verified", False),
-                            "usage": report.get("usage", {})})
+                            "repair_needed": case.expected_classification in {"calculation_defect", "mixed_change"},
+                            "elapsed_seconds": report.get("elapsed_seconds", 0),
+                            "usage": report.get("usage", {}), "report": report})
         except Exception as exc:
-            results.append({"case_id": case.case_id, "correct": False, "error": type(exc).__name__})
+            results.append({"case_id": case.case_id, "expected": case.expected_classification,
+                            "repair_needed": case.expected_classification in {"calculation_defect", "mixed_change"},
+                            "correct": False, "error": type(exc).__name__,
+                            "elapsed_seconds": round(time.monotonic() - case_started, 3),
+                            "error_message": str(exc)[:200], "usage_incomplete": mode != "offline"})
+    usage = {key: sum(row.get("usage", {}).get(key, 0) for row in results)
+             for key in ["input_tokens", "output_tokens", "model_requests", "tool_calls"]}
+    needed = [row for row in results if row.get("repair_needed")]
+    unneeded = [row for row in results if row.get("expected") in {"genuine_change", "insufficient_evidence"}]
+    try:
+        revision = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+                                  timeout=3, check=True).stdout.strip()
+        dirty = bool(subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"],
+                                    capture_output=True, text=True, timeout=3, check=True).stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        revision = "not available"
+        dirty = None
     return {"mode": mode, "claim": "Synthetic fixture regression only; not AI accuracy." if mode == "offline"
             else "Author-generated synthetic cases; not production performance.",
+            "dataset_version": "revenue-v2", "split": split, "generated_at": datetime.now(timezone.utc).isoformat(),
+            "code_revision": revision, "working_tree_dirty": dirty,
+            "source_sha256": next((row["report"]["source_sha256"] for row in results if "report" in row), None),
+            "model": getattr(client, "model", None),
             "total": len(results), "correct": sum(r["correct"] for r in results),
-            "errors": sum("error" in r for r in results), "cases": results}
+            "errors": sum("error" in r for r in results), "usage": usage,
+            "cost_estimate": estimate_cost(usage, input_rate, output_rate) if mode != "offline" else None,
+            "usage_incomplete": any(row.get("usage_incomplete", False) for row in results),
+            "repair_success": {"passed": sum(row.get("repair_verified", False) for row in needed), "denominator": len(needed)},
+            "inappropriate_repairs": {"count": sum(row.get("inappropriate_repair", False) for row in unneeded), "denominator": len(unneeded)},
+            "unobserved_repair_attempts_due_to_errors": sum("error" in row for row in unneeded),
+            "elapsed_seconds": round(sum(row.get("elapsed_seconds", 0) for row in results), 3), "cases": results}
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["offline", "meta"], default="offline")
+    parser.add_argument("--mode", choices=["offline", "meta", "baseline", "compare"], default="offline")
+    parser.add_argument("--split", choices=["development", "stress"], default="development")
+    parser.add_argument("--limit", type=int, default=20)
+    parser.add_argument("--allow-paid", action="store_true", help="Explicitly allow billable Meta requests.")
+    parser.add_argument("--input-rate", type=float, help="USD per million input tokens; supply current account pricing.")
+    parser.add_argument("--output-rate", type=float, help="USD per million output tokens.")
     parser.add_argument("--output", default="artifacts/offline-evaluation.json")
     args = parser.parse_args()
-    if args.mode == "meta":
+    if not 1 <= args.limit <= 20:
+        parser.error("--limit must be 1–20")
+    if args.mode != "offline" and not args.allow_paid:
+        parser.error("Meta modes require --allow-paid; they incur inference charges.")
+    if args.mode != "offline":
         from dotenv import load_dotenv
         load_dotenv()
-    result = evaluate(args.mode)
+    cases = (all_cases() if args.split == "development" else heldout_cases())[:args.limit]
+    modes = ["meta", "baseline"] if args.mode == "compare" else [args.mode]
+    runs = {mode: evaluate(mode, split=args.split, cases=cases, input_rate=args.input_rate,
+                           output_rate=args.output_rate) for mode in modes}
+    result = runs if args.mode == "compare" else runs[args.mode]
     destination = Path(args.output)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(result, indent=2), encoding="utf-8")
-    print(json.dumps({key: value for key, value in result.items() if key != "cases"}, indent=2))
-    if result["errors"]:
+    summaries = {mode: {key: value for key, value in run.items() if key != "cases"} for mode, run in runs.items()}
+    print(json.dumps(summaries, indent=2))
+    if any(run["errors"] for run in runs.values()):
         raise SystemExit(1)
 
 

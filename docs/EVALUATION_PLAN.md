@@ -1,6 +1,6 @@
 # Evaluation plan
 
-The 20 synthetic fixtures and offline regression runner are implemented. Offline results measure scripted logic, not AI accuracy. Live AI evaluation, the same-model/no-tools comparison, and held-out evaluation remain pending.
+The 20 development fixtures, 20 reproducible stress cases, offline runner, and same-model/no-tools comparison tooling are implemented. Offline results measure deterministic logic, not AI accuracy. Actual live AI evaluation remains pending. The stress split varies values, new records, and period boundaries but uses the same incident families; it is not independent production validation.
 
 ## Proposed 20-case set
 
@@ -25,6 +25,22 @@ Each case contains synthetic tables and seeds, prior/current SQL, the user-visib
 2. Same Meta model without execution tools.
 
 Give both the same user-visible incident information. Document any practical differences in context and budgets. Record exact model ID, prompt version, reasoning settings, token/tool limits, and run date. Use a documented shared output schema and scoring rubric. Report stochastic reruns separately if budget permits.
+
+Implementation: both arms receive the complete raw supported incident inputs.
+The tool-assisted arm additionally receives four executed replay results and
+can request adaptive queries/verification; the baseline receives no executed
+results and makes one request with no tools. Both apply the same post-answer
+missing-definition and contract-conflict guards. Raw model classifications
+and proposed corrections are retained separately from the system result.
+This compares complete systems with different execution budgets, not a pure
+equal-compute reasoning ablation. Provider tokens, latency, and limits make
+those differences visible.
+
+Run `python -m datatrace.evaluate --mode compare --allow-paid --limit 1` first.
+Add `--split stress` for the second set. Optional input/output token rates
+produce an explicit approximate cost; absent rates stay unknown. Error cases
+remain in classification and repair denominators. Unknown usage/repair
+attempts from failed calls are flagged rather than treated as zero.
 
 ## Measurements
 

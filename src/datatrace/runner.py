@@ -16,6 +16,8 @@ class QueryRunner:
     FUNCTIONS = {"count", "sum", "min", "max", "avg", "coalesce", "ifnull", "nullif", "abs", "round"}
 
     def __init__(self, snapshot, *, timeout=2.0, max_steps=200000, max_rows=100):
+        from .inputs import validate_snapshot
+        snapshot = validate_snapshot(snapshot)
         self.connection = sqlite3.connect(":memory:")
         self.connection.execute("CREATE TABLE orders (order_id INTEGER, customer_id INTEGER, "
                                 "order_date TEXT, status TEXT, kind TEXT, revenue_cents INTEGER)")

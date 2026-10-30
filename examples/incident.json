@@ -1,0 +1,138 @@
+{
+  "format_version": 1,
+  "description": "Paid October revenue changed unexpectedly. Compare the SQL and snapshots; establish whether the movement is supported by the metric definition.",
+  "contract": {
+    "name": "Paid October revenue",
+    "grain": "one row per order_id",
+    "unit": "integer USD cents",
+    "start": "2026-10-01",
+    "end_exclusive": "2026-11-01",
+    "status": "paid",
+    "refund_policy": "exclude",
+    "customer_coverage": "all orders, including unmatched customers"
+  },
+  "snapshots": {
+    "previous": {
+      "orders": [
+        [
+          1,
+          1,
+          "2026-10-05",
+          "paid",
+          "sale",
+          10000
+        ],
+        [
+          2,
+          2,
+          "2026-10-12",
+          "paid",
+          "sale",
+          20000
+        ],
+        [
+          3,
+          3,
+          "2026-10-18",
+          "paid",
+          "sale",
+          30000
+        ],
+        [
+          4,
+          1,
+          "2026-11-01",
+          "paid",
+          "sale",
+          4000
+        ],
+        [
+          5,
+          2,
+          "2026-10-20",
+          "pending",
+          "sale",
+          9000
+        ]
+      ],
+      "customers": [
+        [
+          1,
+          "West"
+        ],
+        [
+          2,
+          "East"
+        ],
+        [
+          3,
+          "North"
+        ]
+      ]
+    },
+    "current": {
+      "orders": [
+        [
+          1,
+          1,
+          "2026-10-05",
+          "paid",
+          "sale",
+          10000
+        ],
+        [
+          2,
+          2,
+          "2026-10-12",
+          "paid",
+          "sale",
+          20000
+        ],
+        [
+          3,
+          3,
+          "2026-10-18",
+          "paid",
+          "sale",
+          30000
+        ],
+        [
+          4,
+          1,
+          "2026-11-01",
+          "paid",
+          "sale",
+          4000
+        ],
+        [
+          5,
+          2,
+          "2026-10-20",
+          "pending",
+          "sale",
+          9000
+        ]
+      ],
+      "customers": [
+        [
+          1,
+          "West"
+        ],
+        [
+          2,
+          "East"
+        ],
+        [
+          3,
+          "North"
+        ],
+        [
+          2,
+          "East"
+        ]
+      ]
+    }
+  },
+  "previous_sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund'",
+  "current_sql": "SELECT order_id, revenue_cents FROM orders JOIN customers USING (customer_id) WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund'"
+}

@@ -1,0 +1,10 @@
+.git
+.venv
+.env
+.env.*
+artifacts
+.build-tmp
+__pycache__
+*.pyc
+data/private
+.streamlit/secrets.toml

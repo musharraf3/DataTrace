@@ -10,9 +10,10 @@ Updated October 29, 2026 Pacific. Remaining schedule items are targets, not comp
 - Local Git repository and planning documents: initialized in this task.
 - Owner supplied https://github.com/musharraf3/DataTrace ; configured as origin. The GitHub connection returned 404 and listed no accessible installations. Publication is unverified.
 - Credits/billing/key/API request: not verified.
-- Implemented locally: bounded SQLite runner, snapshot replay, per-order repair validation, scripted offline diagnostics, 20 synthetic fixtures, Meta Responses tool loop, evidence export, Streamlit UI, and evaluation runner.
+- Implemented locally: validated JSON/CSV import, editable SQL/contracts, five demo families, bounded SQLite runner, snapshot replay, per-order repair validation, deterministic diagnostics, 20 development and 20 stress cases, Meta Responses tool loop and no-tools baseline, report/history export, UI, CLI, cost estimates, and evaluation runner.
 - Live Meta API: mock-tested only; authenticated inference is unverified.
-- DuckDB backend, held-out AI evaluation, and same-model/no-tools comparison: pending.
+- Same-model/no-tools comparison tooling and reproducible stress split: implemented. Actual live AI evaluation remains pending.
+- DuckDB backend: deferred; SQLite is the completed local backend for this release scope.
 - Licensing: project distribution license not selected.
 
 ## Remaining schedule
@@ -33,4 +34,4 @@ DataTrace, rather than RightCall, is the new hackathon project. RightCall was ap
 
 ## Next executable milestone
 
-Resolve GitHub access and publish the tested code. Configure the API key locally and run one authenticated Meta investigation, then collect live evaluation results and implement the no-tools comparison. Offline broken-join, growth, and ambiguity paths are available now. The first runner uses SQLite because DuckDB package downloads were unavailable.
+Resolve GitHub access and publish the tested code. Configure the API key locally and run one authenticated Meta investigation, then run the implemented model/baseline comparison. All five offline incident families and custom input/report workflows are available. The local release scope uses SQLite because DuckDB package downloads were unavailable.
