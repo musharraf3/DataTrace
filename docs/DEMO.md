@@ -13,6 +13,19 @@ A live run will produce the same diagnosis with slightly different wording.
 5. **Safe path:** if the network or API is slow, use **Recorded live run** mode. It replays a real captured Meta run step by step. Say "this is a recorded run from the app" if you use it.
 6. If you speed up waiting time in editing, put a small "2× speed" label on screen.
 
+## One-click links for recording
+
+Open these in separate browser tabs before you start, so every scene is one click away:
+
+| Scene | Link |
+| --- | --- |
+| Flagship, live (press Investigate) | <http://localhost:8501/?incident=crm_migration&mode=live> |
+| Flagship, recorded replay | <http://localhost:8501/?incident=crm_migration&mode=recorded&autorun=1> |
+| Agent asks about refunds | <http://localhost:8501/?incident=refund_policy&mode=recorded&autorun=1> |
+| Genuine growth, no fix | <http://localhost:8501/?incident=holiday_growth&mode=recorded&autorun=1> |
+
+Links never auto-run live mode, so opening a tab never spends credits.
+
 ## Script
 
 | Time | On screen | Say |

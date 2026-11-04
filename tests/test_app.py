@@ -100,3 +100,27 @@ def test_recorded_clarification_pauses_then_resumes_after_answer():
     _button(app, "Exclude refunds (gross sales)").click().run()
     assert not app.exception
     assert "Resumed after the analyst" in _markdown(app)
+
+
+def test_deep_link_autoruns_recorded_replay():
+    app = AppTest.from_file(APP, default_timeout=60)
+    app.query_params["incident"] = "crm_migration"
+    app.query_params["mode"] = "recorded"
+    app.query_params["autorun"] = "1"
+    app.query_params["fast"] = "1"
+    app.run()
+    assert not app.exception
+    assert "Independently reviewed" in _markdown(app)
+
+
+def test_deep_link_never_autoruns_live_mode(monkeypatch):
+    monkeypatch.setenv("MODEL_API_KEY", "test-placeholder")
+    monkeypatch.setattr("datatrace.meta.MetaClient.complete",
+                        lambda *a, **k: pytest.fail("A link must never start a paid run"))
+    app = AppTest.from_file(APP, default_timeout=60)
+    app.query_params["incident"] = "crm_migration"
+    app.query_params["mode"] = "live"
+    app.query_params["autorun"] = "1"
+    app.run()
+    assert not app.exception
+    assert not any("VERDICT" in m.value for m in app.markdown)

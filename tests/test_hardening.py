@@ -53,3 +53,15 @@ def test_model_text_is_escaped_before_html_rendering():
     from datatrace.ui import _html, _md
     assert _html('<img src=x onerror="alert(1)">') == "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;"
     assert _md("grew $115,080 to $304,397") == "grew \$115,080 to \$304,397"
+
+
+def test_exported_report_includes_root_cause_brief_steps_and_cost():
+    import json
+    from pathlib import Path
+    from datatrace.reporting import list_price_usd, markdown_report
+    recorded = Path(__file__).resolve().parents[1] / "examples" / "recorded" / "realistic-crm_migration.json"
+    report = json.loads(recorded.read_text(encoding="utf-8"))["report"]
+    md = markdown_report(report)
+    for text in ["**Root cause:**", "## Brief for leadership", "## How the agent investigated", "list-price cost"]:
+        assert text in md
+    assert 0 < list_price_usd(report) < 1

@@ -20,7 +20,7 @@ from .cases import make_case
 from .inputs import InputError, bundle_dict, fingerprint, load_bundle, load_csv, snapshot_csv, validate_incident
 from .investigator import Investigation, offline_walkthrough
 from .meta import MetaAPIError, MetaClient, investigate_meta
-from .reporting import markdown_report
+from .reporting import list_price_usd, markdown_report
 from .runner import QueryRejected
 from .scenarios import make_realistic_case
 
@@ -367,6 +367,9 @@ def _verdict_card(report):
         review_html = f"<div class='trace-pill'>{text}</div>"
     if report.get("clarified"):
         review_html += "<div class='trace-pill'>🙋 Resumed after the analyst's answer</div>"
+    cost = list_price_usd(report)
+    if cost and report["mode"] == "meta_live":
+        review_html += f"<div class='trace-pill'>⏱ {report.get('elapsed_seconds', 0):.0f}s · ≈${cost:.2f} · {report['usage'].get('tool_calls', 0)} queries</div>"
     source = {"meta_live": "Meta agent · " + _html(report.get("model")),
               "offline_scripted": "Deterministic checks (no AI)"}.get(report["mode"], report["mode"])
     st.markdown(f"""<div class="verdict" style="border-left:6px solid {color}">
@@ -423,8 +426,10 @@ def _result(case, report, context_key):
     with tabs[1]:
         if report.get("events"):
             usage = report.get("usage", {})
+            cost = list_price_usd(report)
             st.caption(f"{usage.get('model_requests', 0)} agent requests · {usage.get('tool_calls', 0)} tool calls · "
-                       f"{usage.get('input_tokens', 0) + usage.get('output_tokens', 0):,} tokens · {report.get('elapsed_seconds', 0):.0f}s")
+                       f"{usage.get('input_tokens', 0) + usage.get('output_tokens', 0):,} tokens · {report.get('elapsed_seconds', 0):.0f}s"
+                       + (f" · ≈${cost:.2f} at Meta list prices" if cost else ""))
             _render_timeline(report["events"])
         else:
             st.info("Offline mode runs fixed checks. Switch to the Meta agent to see an AI investigation timeline.")
@@ -594,6 +599,23 @@ div[data-testid="stMetricValue"] {font-size:clamp(1.05rem,2.3vw,1.6rem)}
 </style>"""
 
 
+def _deep_link():
+    """Read ?incident=<name>&mode=recorded|offline|live&autorun=1&fast=1 from the URL.
+
+    Autorun only ever applies to recorded and offline modes, so a link can never spend API credits.
+    """
+    try:
+        params = st.query_params
+        names = [choice[1] for _, choice in SCENARIO_CHOICES]
+        incident = params.get("incident")
+        mode = {"recorded": RECORDED_MODE, "offline": OFFLINE, "live": LIVE}.get(params.get("mode", ""))
+        return {"incident_index": names.index(incident) if incident in names else None, "mode": mode,
+                "autorun": params.get("autorun") == "1" and mode in {RECORDED_MODE, OFFLINE},
+                "fast": params.get("fast") == "1"}
+    except Exception:
+        return {"incident_index": None, "mode": None, "autorun": False, "fast": False}
+
+
 def _context_key(case, mode, scenario_key):
     # Recorded runs are tied to the bundled incident, not to local edits.
     return f"{scenario_key}:{mode}" if mode == RECORDED_MODE else fingerprint(case) + ":" + mode
@@ -614,9 +636,13 @@ def main():
     public = _public_demo()
     with st.sidebar:
         st.header("Investigation setup")
-        scenario = st.selectbox("Synthetic incident", [label for label, _ in SCENARIO_CHOICES])
+        link = _deep_link()
+        scenario = st.selectbox("Synthetic incident", [label for label, _ in SCENARIO_CHOICES],
+                                index=link["incident_index"] or 0)
         choice = dict(SCENARIO_CHOICES)[scenario]
-        mode = st.radio("Investigation mode", [LIVE, RECORDED_MODE, OFFLINE], index=0 if key_ready else 1,
+        modes = [LIVE, RECORDED_MODE, OFFLINE]
+        mode = st.radio("Investigation mode", modes,
+                        index=modes.index(link["mode"]) if link["mode"] else (0 if key_ready else 1),
                         help="Recorded runs replay real Meta agent runs captured from this app, at no cost.")
         source = st.radio("Input source", ["Bundled example", "Incident JSON", "Four CSV snapshots"],
                           disabled=mode == RECORDED_MODE)
@@ -698,7 +724,10 @@ def main():
                 st.error(str(exc))
 
         disabled = mode == LIVE and (not key_ready or not consent or (public and source != "Bundled example"))
-        if st.button("③ Investigate metric change", type="primary", disabled=disabled):
+        autorun = link["autorun"] and not st.session_state.get("autoran")
+        if autorun:
+            st.session_state["autoran"] = True
+        if st.button("③ Investigate metric change", type="primary", disabled=disabled) or autorun:
             labels = {LIVE: "Muse Spark is investigating…", RECORDED_MODE: "Replaying a recorded Meta agent run…",
                       OFFLINE: "Running deterministic contract checks…"}
             box = st.status(labels[mode], expanded=mode != OFFLINE)
@@ -718,7 +747,7 @@ def main():
                     recording = json.loads(path.read_text(encoding="utf-8"))
                     report = recording.get("paused") or recording["report"]
                     st.session_state.get("refund_answers", {}).pop(scenario_key, None)
-                    _play(report.get("events", []), box)
+                    _play(report.get("events", []), box, speed=1e9 if link["fast"] else 5.0)
                 else:
                     report = offline_walkthrough(case)
                 paused_now = report.get("status") == "needs_clarification"

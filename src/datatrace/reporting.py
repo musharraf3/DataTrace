@@ -33,6 +33,24 @@ def estimate_cost(usage, input_rate=None, output_rate=None):
             "basis": "User-configured rates; excludes cache discounts, taxes, and other fees."}
 
 
+# Meta list prices, USD per 1M tokens (dev.meta.ai pricing page, checked 2026-11-03).
+LIST_PRICES = {"muse-spark-1.3": (1.25, 4.25), "muse-wonder-1.0": (4.00, 20.00)}
+
+
+def list_price_usd(report):
+    """Approximate list-price cost of a live run: agent tokens at Spark rates, review tokens at Wonder rates."""
+    usage = report.get("usage") or {}
+    if not usage.get("input_tokens"):
+        return None
+    reviews = report.get("review_history") or []
+    review_in = sum(r.get("usage", {}).get("input_tokens", 0) for r in reviews)
+    review_out = sum(r.get("usage", {}).get("output_tokens", 0) for r in reviews)
+    spark_in, spark_out = LIST_PRICES["muse-spark-1.3"]
+    wonder_in, wonder_out = LIST_PRICES["muse-wonder-1.0"]
+    return round(((usage["input_tokens"] - review_in) * spark_in + (usage.get("output_tokens", 0) - review_out) * spark_out
+                  + review_in * wonder_in + review_out * wonder_out) / 1e6, 4)
+
+
 def enrich_report(report, incident):
     output = copy.deepcopy(report)
     output["report_version"] = 1
@@ -56,6 +74,15 @@ def markdown_report(report):
              f"Input SHA-256: {report.get('input_sha256', 'not recorded')}", "",
              "## Finding", "", report["classification"].replace("_", " ").title(), "",
              report["summary"]]
+    if report.get("root_cause"):
+        lines.extend(["", f"**Root cause:** {report['root_cause']}"])
+    review = report.get("review")
+    if review:
+        lines.extend(["", "## Brief for leadership", "", review.get("stakeholder_brief", ""), "",
+                      f"Independent review by {review.get('model')}: **{review.get('verdict')}**"
+                      + (" (agent revised once after a challenge)" if len(report.get("review_history") or []) > 1 else "")])
+        for concern in review.get("concerns", []):
+            lines.append(f"- {concern}")
     reconciliation = report.get("reconciliation")
     if reconciliation:
         lines.extend(["", "## Revenue reconciliation", "",
@@ -78,7 +105,21 @@ def markdown_report(report):
         validation = report["validation"]
         lines.extend(["", "## Independent check", "", f"Verified: {validation['verified']}",
                       "", validation["reason"]])
-    lines.extend(["", "## Usage", "", "```json", json.dumps(report.get("usage", {}), indent=2), "```",
+    steps = [e for e in report.get("events") or [] if e.get("type") == "tool_call"]
+    if steps:
+        lines.extend(["", "## How the agent investigated", ""])
+        results = {e.get("call_id"): e.get("result") or {} for e in report.get("events") or [] if e.get("type") == "tool_result"}
+        for number, step in enumerate(steps, 1):
+            result = results.get(step.get("call_id"), {})
+            outcome = result.get("evidence_id") or ("rejected: " + str(result.get("error"))[:80] if "error" in result else "")
+            label = {"query_snapshot": "Query", "verify_correction": "Verify fix",
+                     "request_clarification": "Asked the analyst"}.get(step.get("tool"), step.get("tool"))
+            detail = step.get("purpose") or step.get("question") or ""
+            lines.append(f"{number}. **{label}**: {detail}" + (f" ({outcome})" if outcome else ""))
+    cost = list_price_usd(report)
+    lines.extend(["", "## Usage", "",
+                  f"Elapsed: {report.get('elapsed_seconds', 0):.0f}s" + (f" · estimated list-price cost ${cost:.3f}" if cost else ""),
+                  "", "```json", json.dumps(report.get("usage", {}), indent=2), "```",
                   "", "## Limits", "", report.get("limitations", "Not recorded."), "",
                   "The JSON report contains executed SQL, evidence rows, and tool traces."])
     return "\n".join(lines) + "\n"

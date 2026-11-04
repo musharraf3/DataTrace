@@ -13,6 +13,25 @@ Deadline: **Wednesday Nov 4, 2026, 6:00 PM PT / 9:00 PM ET**. Submit early in th
 | Demo video | *(your YouTube unlisted or Loom link; check it plays in a private window)* |
 | X post URL (optional, Most Viral) | *(your post link; see docs/X_POST.md)* |
 
+## Short versions (for fields with character limits)
+
+**One line (under 120 characters)**
+> An agent that tells you if a metric jump is real or the dashboard is wrong, and proves it with verified SQL.
+
+**About 280 characters**
+> DataTrace is a Muse Spark agent that investigates why a business metric moved. It runs sandboxed SQL, never sees raw rows, verifies every fix order by order, pauses to ask when a definition is missing, and gets a second opinion from Muse Wonder.
+
+**About 500 characters**
+> DataTrace investigates the question analysts get before every leadership review: is this metric jump real? A Muse Spark agent tests hypotheses with bounded, read-only SQL, separates genuine growth from reporting bugs down to the order, and only reports a fix after an independent per-order check passes. Muse Wonder reviews each diagnosis; voice and screenshot intake start an investigation. In 320 benchmark runs it scored 159/160, and it still works at 42k orders, where the no-tools baseline can't run.
+
+## GitHub repository "About" box
+
+Set it on the repo page via the gear icon next to **About**:
+
+- **Description:** `Meta-model agent that explains why a business metric moved and verifies the fix order by order. Muse Spark + Muse Wonder.`
+- **Topics:** `meta-ai`, `muse-spark`, `ai-agents`, `tool-calling`, `sql`, `data-quality`, `analytics`, `streamlit`, `hackathon`
+- **Website:** your Streamlit Cloud URL if you deploy one, otherwise the video link.
+
 ## Project description
 
 DataTrace is an AI investigator for the question every analyst gets before a leadership review: "This metric jumped. Is it real, or is the dashboard wrong?"

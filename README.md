@@ -1,5 +1,10 @@
 # DataTrace
 
+[![Python checks](https://github.com/musharraf3/DataTrace/actions/workflows/tests.yml/badge.svg)](https://github.com/musharraf3/DataTrace/actions/workflows/tests.yml)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3656ae)
+![Meta models](https://img.shields.io/badge/Meta-muse--spark--1.3%20%C2%B7%20muse--wonder--1.0%20%C2%B7%20voice-0f8179)
+[![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+
 **An agent that tells you whether a metric jump is real or the dashboard is wrong, and proves it.**
 
 It's 8 a.m., the CFO review is at 10, and *Paid November revenue* jumped 68% overnight. Black Friday was strong, but is all of it real?
@@ -8,6 +13,30 @@ DataTrace's Meta-powered agent investigates the change with executed SQL evidenc
 > **Flagship result** (real recorded run, 4,122 orders): revenue moved **+$129,045**. **$115,080** is genuine holiday growth. **$13,966** is a reporting error: a CRM migration duplicated 126 customers (+$25,521 double-counted) while the new inner join dropped 131 orders (−$11,555). Verified fix: **$304,397**. Reviewed and supported by a second Meta model.
 
 Built for the **Meta Global AI Developer Hackathon 2026**, Indie Developer track, **Build for Your World** theme.
+
+![DataTrace verdict: real growth plus a reporting defect, with a verified fix and a CFO brief](docs/screenshots/verdict.png)
+
+## Try it in 60 seconds (no API key needed)
+
+```powershell
+git clone https://github.com/musharraf3/DataTrace
+cd DataTrace
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\python.exe run.py
+```
+
+Then open one of these links. Each replays a real captured Meta agent run at no cost:
+
+- Flagship Black Friday incident: <http://localhost:8501/?incident=crm_migration&mode=recorded&autorun=1>
+- The agent pauses to ask about refunds: <http://localhost:8501/?incident=refund_policy&mode=recorded&autorun=1>
+- Genuine growth, no fix needed: <http://localhost:8501/?incident=holiday_growth&mode=recorded&autorun=1>
+
+Add a key to `.env` and choose **Live Meta agent** to run it for real. Links never auto-run live mode, so a link can never spend credits.
+
+| The agent's live timeline | It asks instead of guessing |
+| --- | --- |
+| ![Agent timeline: each hypothesis, its SQL and the evidence it returned](docs/screenshots/timeline.png) | ![The agent pauses with a precise refund question](docs/screenshots/clarification.png) |
 
 ![How DataTrace works](docs/architecture.svg)
 
@@ -49,6 +78,8 @@ The honest reading:
 - 0 unneeded repairs and 100% verified repairs for the agent. A model cannot self-certify a fix: the per-order checker decides.
 
 These are synthetic, author-generated incidents with hidden labels, not a production benchmark.
+
+![Benchmark tab: agent vs. no-tools baseline across four splits](docs/screenshots/benchmark.png)
 
 ## What happens in an investigation
 
@@ -150,6 +181,14 @@ src/datatrace/evaluate.py     benchmark harness
 examples/recorded/            real captured Meta runs
 results/                      benchmark summary
 ```
+
+## What's next
+
+- **Warehouse connectors.** Run the same bounded, read-only tools against DuckDB, Snowflake or BigQuery views instead of in-memory snapshots.
+- **Any metric, not just order revenue.** Let the analyst declare grain, filters and measure in the contract; the verifier already checks per-key multisets, so it generalises.
+- **Open-weight mode.** The same agent on Muse Spark Open or Muse Glimmer for teams whose data can't leave their infrastructure, benchmarked against the hosted model.
+- **Alerts in, briefs out.** Start investigations from a dashboard alert or Slack message and post the verified brief back.
+- **Learning from verified traces.** Every investigation produces a checked trace (hypothesis, query, evidence, verdict), which is training data for a smaller specialised investigator.
 
 ## Limits
 
