@@ -87,20 +87,38 @@ class MetaClient:
         if self.base_url != OFFICIAL_BASE_URL:
             raise MetaAPIError("This prototype only sends credentials to https://api.meta.ai/v1.")
 
-    def _send(self, request, timeout):
-        try:
-            with urllib.request.build_opener(_NoRedirect()).open(request, timeout=timeout) as response:
-                raw = response.read(4000001)
-                if len(raw) > 4000000:
-                    raise MetaAPIError("Meta response exceeds the prototype response limit.")
-                payload = json.loads(raw)
-                if not isinstance(payload, dict):
-                    raise MetaAPIError("Meta response must be a JSON object.")
-                return payload
-        except urllib.error.HTTPError as exc:
-            raise MetaAPIError(f"Meta API returned HTTP {exc.code}; check account access, billing, and model availability.") from None
-        except (urllib.error.URLError, TimeoutError, OSError, ValueError):
-            raise MetaAPIError("Could not complete the Meta API request. Check connectivity and retry explicitly.") from None
+    def _send(self, request, timeout, retries=2):
+        """POST once, retrying only transient failures (network, 429, 5xx) with backoff."""
+        for attempt in range(retries + 1):
+            transient = attempt < retries
+            try:
+                with urllib.request.build_opener(_NoRedirect()).open(request, timeout=timeout) as response:
+                    raw = response.read(4000001)
+                    if len(raw) > 4000000:
+                        raise MetaAPIError("Meta response exceeds the prototype response limit.")
+                    payload = json.loads(raw)
+                    if not isinstance(payload, dict):
+                        raise MetaAPIError("Meta response must be a JSON object.")
+                    return payload
+            except urllib.error.HTTPError as exc:
+                if transient and (exc.code == 429 or exc.code >= 500):
+                    time.sleep(2 * (attempt + 1))
+                    continue
+                detail = ""
+                try:  # Provider error bodies describe the request, never the credential.
+                    error = json.loads(exc.read(20000)).get("error", {})
+                    if error.get("code") or error.get("message"):
+                        detail = f" ({error.get('code', '')}: {str(error.get('message', ''))[:220]})"
+                except (ValueError, AttributeError, OSError):
+                    pass
+                raise MetaAPIError(f"Meta API returned HTTP {exc.code}{detail}.") from None
+            except ValueError:
+                raise MetaAPIError("Meta response was not valid JSON.") from None
+            except (urllib.error.URLError, TimeoutError, OSError):
+                if transient:
+                    time.sleep(2 * (attempt + 1))
+                    continue
+                raise MetaAPIError("Could not complete the Meta API request. Check connectivity and retry explicitly.") from None
 
     def complete(self, *, inputs, previous_response_id=None, tools_enabled=True, instructions=None,
                  model=None, effort=None, text_format=None, max_output_tokens=8000):
@@ -116,7 +134,7 @@ class MetaClient:
         if previous_response_id:
             body["previous_response_id"] = previous_response_id
         data = json.dumps(body).encode()
-        if len(data) > 2500000:
+        if len(data) > 12000000:
             raise MetaAPIError("Incident context is too large for this prototype. Reduce snapshot size before using Meta mode.")
         request = urllib.request.Request(self.base_url + "/responses", data=data,
                                          headers={"Authorization": "Bearer " + self.key,

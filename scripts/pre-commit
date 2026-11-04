@@ -1,0 +1,13 @@
+#!/bin/sh
+# Blocks a commit if staged content contains the real MODEL_API_KEY from .env.
+# Install: cp scripts/pre-commit .git/hooks/pre-commit
+KEY=$(grep '^MODEL_API_KEY=' .env 2>/dev/null | cut -d= -f2- | tr -d '\r "')
+if [ -n "$KEY" ] && git diff --cached -U0 | grep -F -q "$KEY"; then
+  echo "pre-commit: staged changes contain MODEL_API_KEY. Commit blocked." >&2
+  exit 1
+fi
+if git diff --cached --name-only | grep -E -q '(^|/)\.env$|secrets\.toml$'; then
+  echo "pre-commit: refusing to commit .env or secrets.toml." >&2
+  exit 1
+fi
+exit 0

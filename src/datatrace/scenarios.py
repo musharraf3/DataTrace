@@ -68,16 +68,16 @@ def _daily_volume(day, rng):
     return max(10, int(rng.gauss(base, base * 0.08)))
 
 
-def _build(seed):
+def _build(seed, scale=1):
     rng = random.Random(seed)
-    customers = [(cid, rng.choice(REGIONS)) for cid in range(1, 1401)]
+    customers = [(cid, rng.choice(REGIONS)) for cid in range(1, 1400 * scale + 1)]
     orders = []
     order_id = 100000
     day = date(2026, 10, 27)
     while day <= date(2026, 12, 1):
-        for _ in range(_daily_volume(day, rng)):
+        for _ in range(_daily_volume(day, rng) * scale):
             order_id += 1
-            customer = rng.randint(1, 1460)  # ~4% of orders come from customers not yet synced to CRM
+            customer = rng.randint(1, 1460 * scale)  # ~4% of orders come from customers not yet synced to CRM
             roll = rng.random()
             status = "paid" if roll < 0.88 else "pending" if roll < 0.95 else "cancelled"
             orders.append([order_id, customer, day.isoformat(), status, "sale", _amount(rng)])
@@ -106,11 +106,11 @@ def _snapshot(orders, customers, as_of, rng=None, settle=False):
     return {"orders": visible, "customers": [tuple(c) for c in customers]}
 
 
-def make_realistic_case(kind="crm_migration", seed=2026):
+def make_realistic_case(kind="crm_migration", seed=2026, scale=1):
     if kind not in SCENARIOS:
         raise ValueError("Unknown realistic scenario.")
-    rng, customers, orders = _build(seed)
-    previous = _snapshot(orders, [c for c in customers if c[0] <= 1400], "2026-11-24")
+    rng, customers, orders = _build(seed, scale)
+    previous = _snapshot(orders, [c for c in customers if c[0] <= 1400 * scale], "2026-11-24")
     # By Dec 1 some pending payments from earlier in the month have settled.
     settled = {row[0] for row in orders if row[3] == "pending" and row[2] <= "2026-11-20" and rng.random() < 0.6}
     current_orders = [(*row[:3], "paid" if row[0] in settled else row[3], *row[4:])
@@ -123,7 +123,7 @@ def make_realistic_case(kind="crm_migration", seed=2026):
     if kind == "crm_migration":
         # Migration duplicated ~9% of customer records under a new region label
         # and has not yet synced ~60 new customers.
-        dupes = rng.sample(current_customers, 126)
+        dupes = rng.sample(current_customers, 126 * scale)
         current_customers += [(cid, region + " (migrated)") for cid, region in dupes]
         current_sql = ("SELECT o.order_id, o.revenue_cents\nFROM orders o\n"
                        "JOIN customers c ON c.customer_id = o.customer_id\n"
@@ -139,7 +139,7 @@ def make_realistic_case(kind="crm_migration", seed=2026):
 
     snapshots = {"previous": {"orders": previous["orders"], "customers": previous["customers"]},
                  "current": {"orders": current_orders, "customers": current_customers}}
-    incident = Incident(f"realistic-{kind}-{seed}", "", contract, snapshots, prior_sql, current_sql,
+    incident = Incident(f"realistic-{kind}-{seed}" + (f"-x{scale}" if scale > 1 else ""), "", contract, snapshots, prior_sql, current_sql,
                         SCENARIOS[kind]["expected"], "realistic_" + kind)
     incident.description = _description(incident, SCENARIOS[kind]["change_note"])
     return incident
@@ -151,7 +151,7 @@ def _description(incident, note):
     for sql, snap in [(incident.previous_sql, "previous"), (incident.current_sql, "current")]:
         runner = QueryRunner(incident.snapshots[snap])
         try:
-            rows = runner.query(sql, max_rows=50000)["rows"]
+            rows = runner.query(sql, max_rows=200000)["rows"]
         finally:
             runner.close()
         totals.append(sum(row[1] for row in rows))
@@ -164,3 +164,8 @@ def _description(incident, note):
 
 def realistic_cases(seeds=(2026, 7)):
     return [make_realistic_case(kind, seed) for seed in seeds for kind in SCENARIOS]
+
+
+def scale_cases(scale=10, seed=2026):
+    """Warehouse-scale variants (~40k orders) where raw rows no longer fit a model's context."""
+    return [make_realistic_case(kind, seed, scale) for kind in SCENARIOS]

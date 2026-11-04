@@ -36,7 +36,7 @@ class Investigation:
         records = []
         for version, sql in [("previous", self.incident.previous_sql), ("current", self.incident.current_sql)]:
             for snapshot in ["previous", "current"]:
-                evidence = self.runners[snapshot].query(sql, max_rows=50000)
+                evidence = self.runners[snapshot].query(sql, max_rows=200000)
                 if evidence["columns"] != ["order_id", "revenue_cents"] or evidence["truncated"]:
                     raise QueryRejected("Replay metric must return complete order_id, revenue_cents rows.")
                 if any(type(row[0]) is not int or type(row[1]) is not int for row in evidence["rows"]):
@@ -67,7 +67,7 @@ class Investigation:
             return {"verified": False, "reason": "Clarify refund treatment before verifying a repair."}
         expected = self._contract_rows(snapshot)
         try:
-            result = self.runners[snapshot].query(sql, max_rows=50000)
+            result = self.runners[snapshot].query(sql, max_rows=200000)
         except QueryRejected as exc:
             return {"verified": False, "reason": str(exc)}
         result.update({"evidence_id": f"E{len(self.evidence) + 1}", "snapshot": snapshot})

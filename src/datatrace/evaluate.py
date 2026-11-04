@@ -17,17 +17,19 @@ from .investigator import offline_walkthrough
 from .meta import MetaClient, investigate_meta, investigate_baseline
 from .reporting import estimate_cost
 
-SPLITS = ["development", "stress", "realistic"]
+SPLITS = ["development", "stress", "realistic", "scale"]
 
 
 def split_cases(split):
-    from .scenarios import realistic_cases
+    from .scenarios import realistic_cases, scale_cases
     if split == "development":
         return all_cases()
     if split == "stress":
         return heldout_cases()
     if split == "realistic":
         return realistic_cases()
+    if split == "scale":
+        return scale_cases()
     raise ValueError("Unknown evaluation split.")
 
 

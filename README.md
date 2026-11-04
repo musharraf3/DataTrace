@@ -1,149 +1,131 @@
 # DataTrace
 
-**Explain why a business metric changed—and test the explanation.**
+**An agent that tells you whether a metric jump is real or the dashboard is wrong, and proves it.**
 
-DataTrace investigates SQL metric movements through executed evidence and independent repair checks. It distinguishes calculation defects, genuine data changes, mixed changes, and incidents that need more evidence.
+It's 8 a.m., the CFO review is at 10, and *Paid November revenue* jumped 68% overnight. Black Friday was strong, but is all of it real?
+DataTrace's Meta-powered agent investigates the change with executed SQL evidence. It separates genuine business movement from reporting errors down to the individual order, and reports a fix only after an independent checker verifies it.
+
+> **Flagship result** (real recorded run, 4,122 orders): revenue moved **+$129,045**. **$115,080** is genuine holiday growth. **$13,966** is a reporting error: a CRM migration duplicated 126 customers (+$25,521 double-counted) while the new inner join dropped 131 orders (−$11,555). Verified fix: **$304,397**. Reviewed and supported by a second Meta model.
 
 Built for the **Meta Global AI Developer Hackathon 2026**, Indie Developer track, **Build for Your World** theme.
 
-## Application status
+![How DataTrace works](docs/architecture.svg)
 
-The local application includes five demo families, custom incident JSON and CSV snapshots, editable SQL and metric contracts, four-way SQL/snapshot replay, bounded queries, independent per-order repair checks, JSON/Markdown reports, run history, a Meta Responses tool loop, and a no-tools model baseline. Evaluation includes 20 development and 20 stress cases.
+## Why it matters
 
-Offline mode runs deterministic diagnostics; **it is not AI inference or an AI accuracy benchmark**. Meta transport and agent behavior have automated mock tests, but authenticated inference remains unverified because no key is configured. The GitHub connector still returns 404 for the supplied repository; the local origin is configured and commits are preserved.
+Analysts spend hours answering "is this number right?" before every leadership review. Generic AI chat can't answer it: it either guesses, or it needs every raw row pasted into its context, which leaks data and stops working at warehouse scale. DataTrace gives a Meta model the job an analyst actually does: form hypotheses, run targeted queries, test a fix against the metric's definition, and ask when the definition is missing.
 
-The current SQL runner is **SQLite**, available in Python's standard library. DuckDB package downloads were blocked in the development environment, so DuckDB migration remains planned. No production performance is claimed.
+## Meta models: four roles
 
-## Run locally
+| Model | Role |
+| --- | --- |
+| **`muse-spark-1.3`** | **Investigator agent.** A client-side tool loop: it plans hypotheses, writes diagnostic SQL, issues tool calls in parallel, revises from results, calls `request_clarification` when the contract is incomplete, and proposes a correction it must test with `verify_correction`. Reasoning summaries stream into the UI. |
+| **`muse-wonder-1.0`** | **Independent reviewer.** Sees only the executed evidence, contract checks and the diagnosis, never the agent's reasoning. Returns a structured verdict (JSON schema). A challenge sends the agent back for one evidence-backed revision. Also drafts the two-sentence stakeholder brief. |
+| `muse-spark-1.3` (vision) | **Intake.** Reads a dashboard screenshot and message and drafts the metric contract for the analyst to confirm. |
+| **`muse-voice-transcribe-1.0`** | **Voice intake.** Turns a stakeholder's voice note into the incident description (`/v1/asr/transcribe`). |
 
-Requires Python 3.11+ and package-index access for a fresh install.
+## Benchmark: the agent vs. the same model without tools
+
+Every case was run 3× (warehouse-scale 2×). The baseline is the same `muse-spark-1.3`, with all raw rows in its prompt and no tools. Full table: [results/BENCHMARK.md](results/BENCHMARK.md).
+
+<!-- BENCHMARK_TABLE -->
+
+The honest reading:
+
+- **On small data, both get the right answer.** A strong model can compute the answer from pasted rows. The agent matches it while reading only its own query results.
+- **On realistic data (~4k orders), both are correct, but the agent uses ~14× fewer input tokens** and never sends a raw row to the model.
+- **At warehouse scale (~42k orders), the baseline cannot run at all.** The rows are 2,064,623 tokens against a 1,048,576-token context window (`context_length_exceeded`). The agent still solves 10/10, because it only reads what it queries.
+- 0 unneeded repairs and 100% verified repairs for the agent. A model cannot self-certify a fix: the per-order checker decides.
+
+These are synthetic, author-generated incidents with hidden labels, not a production benchmark.
+
+## What happens in an investigation
+
+1. **Intake.** Voice note, screenshot or message. Meta models draft the metric contract; the analyst confirms it.
+2. **Replay.** Previous and current SQL each run on previous and current snapshots (four executions), so code effects and data effects separate.
+3. **Agent loop.** `muse-spark-1.3` tests hypotheses (fan-out from duplicate keys, inner-join drops, date and status boundaries, refund treatment) with bounded read-only queries. Every query carries a stated purpose, shown live.
+4. **Clarify, don't guess.** If refund treatment is undefined, the agent pauses and asks; the same investigation resumes after the answer.
+5. **Verify.** A proposed fix passes only if the **complete per-order multiset** matches the contract, not merely the total.
+6. **Review.** `muse-wonder-1.0` challenges unsupported claims; the agent revises once if challenged.
+7. **Act.** Verdict, revenue bridge, affected orders, verified SQL, CFO brief, and portable JSON/Markdown evidence.
+
+## Run it
+
+Python 3.11+.
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
-.\.venv\Scripts\python.exe -m streamlit run app.py
+copy .env.example .env      # then add MODEL_API_KEY privately
+.\.venv\Scripts\python.exe run.py
 ```
 
-On macOS/Linux use `.venv/bin/python` instead. Choose **Offline evidence walkthrough** and click **Investigate metric change**; no API key is needed for this mode.
+macOS/Linux: `.venv/bin/python`. Without a key, the app opens in **Recorded live run** mode, which replays real Meta agent runs captured from this app at no cost. **Offline checks** runs deterministic diagnostics with no AI.
+
+Command line:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe -m datatrace.evaluate --mode offline
-```
-
-Run the additional stress set:
-
-```powershell
-.\.venv\Scripts\python.exe -m datatrace.evaluate --mode offline --split stress --output artifacts/stress.json
-```
-
-For paid model evaluation after setup, first run a single-case comparison, then expand it:
-
-```powershell
-.\.venv\Scripts\python.exe -m datatrace.evaluate --mode compare --allow-paid --limit 1 --output artifacts/meta-comparison.json
-```
-
-Use `--mode meta` for the tool-assisted system, `--mode baseline` for the same model without tools, and `--split stress` for new distributions/boundary cases. Optional `--input-rate` and `--output-rate` accept your current USD-per-million-token prices; otherwise costs remain unknown. All per-case reports, failures, repair checks, token counts, elapsed times, and provenance are retained. Failed requests may incur usage that is unavailable in their error responses; such runs are flagged incomplete. No live AI benchmark results are included.
-
-## Load your own incident
-
-Select **Incident JSON** or **Four CSV snapshots**. Download the example ZIP in the sidebar for a complete template. JSON format version 1 contains description, contract, previous/current SQL, and previous/current snapshots. It never contains evaluation labels.
-
-| CSV | Required header |
-| --- | --- |
-| orders (previous and current) | `order_id,customer_id,order_date,status,kind,revenue_cents` |
-| customers (previous and current) | `customer_id,region` |
-
-Each file is limited to 1 MiB and each table to 2,000 rows. Order IDs must be unique positive integers. Revenue uses integer USD cents, dates use YYYY-MM-DD, status is paid/pending/cancelled, and kind is sale/refund. Duplicate customer keys are allowed so the investigator can detect multiplying joins. Metric SQL must return exactly `order_id, revenue_cents` rows, rather than a pre-aggregated scalar.
-
-The supported contract includes an inclusive start, exclusive end, one eligible status, and include/exclude/unknown refund treatment. It includes unmatched customers and uses one row per order. Unsupported grains/units are rejected instead of silently misverified. Meta context has an additional size cap; reduce large incidents for live mode. Do not upload data you lack permission to use.
-
-After an investigation, inspect the replay decomposition, executed evidence and correction checks. The **Verify a correction** tab checks your own SQL locally. The export tab downloads JSON execution evidence and a readable Markdown report. The last five reports remain in the browser session only; download them for persistence.
-
-## Command-line workflow
-
-```powershell
-.\.venv\Scripts\python.exe -m datatrace sample --output incident.json
-.\.venv\Scripts\python.exe -m datatrace investigate incident.json --output-dir artifacts/my-run
+.\.venv\Scripts\python.exe -m datatrace sample --realistic crm_migration --output incident.json
+.\.venv\Scripts\python.exe -m datatrace investigate incident.json --mode meta --allow-paid --review
 .\.venv\Scripts\python.exe -m datatrace verify incident.json correction.sql
 ```
 
-Investigation defaults to offline diagnostics. Add `--mode meta --allow-paid` for live inference. Reports include input/source hashes, runtime versions, elapsed time, and the supplied contract. Commands return a nonzero exit status for invalid inputs, failed verification, or provider errors.
+Reproduce the benchmark (billable, about $25 at list prices):
 
-## Architecture
-
-```mermaid
-flowchart TD
-    I["Incident SQL, snapshots, contract"] --> V["Validate supported schema"]
-    V --> O["Offline contract diagnostics"]
-    V --> M["Meta model and bounded tools"]
-    O --> Q["Read-only SQLite execution"]
-    M --> Q
-    Q --> R["Independent order-level checks"]
-    R --> E["Evidence and portable report"]
+```powershell
+.\.venv\Scripts\python.exe -m datatrace.evaluate --mode compare --allow-paid --review --split realistic --repeat 3 --workers 8 --output artifacts/bench-realistic.json
+.\.venv\Scripts\python.exe scripts\summarize_benchmark.py
 ```
 
-The baseline receives the same raw incident data and SQL, but no tool definitions or executed replay. Its proposed repairs are scored only after the model answers. Both modes apply the same missing-definition guard. Reports retain raw model classifications/repair attempts separately from the application's checked result.
+Splits: `development`, `stress`, `realistic`, `scale`. Tests: `python -m pytest -q`.
 
-## Investigation workflow
+## Bring your own incident
 
-1. Supply previous/current SQL, previous/current data snapshots, and the metric definition.
-2. A Meta model proposes hypotheses and selects diagnostic tools.
-3. The in-memory SQLite runner executes bounded, read-only investigations against synthetic data.
-4. Each conclusion cites executed queries and observed results.
-5. A proposed SQL correction is checked in an isolated environment against metric invariants and regression checks.
-6. Valid business changes are preserved; ambiguous definitions trigger a clarification request.
+Upload an **Incident JSON** or **four CSV snapshots** (template ZIP in the sidebar).
 
-## Scope
+| CSV | Header |
+| --- | --- |
+| orders (previous, current) | `order_id,customer_id,order_date,status,kind,revenue_cents` |
+| customers (previous, current) | `customer_id,region` |
 
-- **Current stack:** Python, SQLite, Streamlit, Meta Model API. DuckDB remains planned.
-- **Initial incidents:** duplicate joins, dropped records, incorrect date filters.
-- **Demo cases:** broken calculation, real business growth, insufficient evidence.
-- **Evaluation tooling:** 20 development and 20 stress incidents; same-model/no-tools baseline implemented. Actual live inference runs remain pending.
-- **No production database connections or automatic production changes in the prototype.**
+Up to 120,000 rows per table and 32 MiB per file. Metric SQL must return `order_id, revenue_cents` rows. The supported contract covers an inclusive start, exclusive end, one eligible status, and refund include/exclude/unknown. Unsupported grains are rejected rather than silently misverified.
 
-## Meta API setup
+## Security and API-key safety
 
-The project owner has confirmed that a Meta Model API account exists. Credit application, billing readiness, API-key availability, and a successful project API call remain unverified.
+- **Key handling.** Read from `.env` (git-ignored) or Streamlit secrets; sent only to `https://api.meta.ai/v1`, with redirects refused; never displayed, logged or exported.
+- **Leak guards.** `tests/test_secrets.py` fails CI if any tracked file assigns `MODEL_API_KEY`. `scripts/pre-commit` blocks commits containing the real key.
+- **Data minimisation.** The agent never receives raw rows, only the schema, row counts and its own capped query results.
+- **Sandboxed SQL.** In-memory SQLite with an authorizer allowlist (SELECT on two tables, ten functions), `query_only`, VM-step and time limits, capped rows, and no writes, attachments, PRAGMAs or recursive CTEs.
+- **Bounded agent.** 12 tool calls, 250k tokens per investigation, one review-driven revision; fabricated evidence IDs are rejected.
+- **Public demo mode** (`DATATRACE_PUBLIC_DEMO=1`): per-visitor and per-day live-run caps, and live mode limited to bundled synthetic data. See [docs/DEPLOY.md](docs/DEPLOY.md).
+- Contributor-mode models (which permit training on inputs) are deliberately not used.
 
-Copy `.env.example` to a local `.env` and fill it privately. `.env` is ignored by Git. Never put a real API key in source code, issues, screenshots, or demo recordings. Restart the app, select Live Meta investigator, confirm permission to send that incident to Meta, and explicitly run it. This sends raw incident inputs and executed evidence to Meta and uses billable inference. The tool-assisted flow stores provider response context for continuation via `previous_response_id`; the baseline does not request storage. Use only data permitted under your provider/account terms.
+## Built during the hackathon
 
-The default endpoint is `https://api.meta.ai/v1`, key environment variable `MODEL_API_KEY`, and model `muse-spark-1.3`. The transport uses the [official Responses tool-calling pattern](https://dev.meta.ai/docs/tool-calling), matched call IDs, and previous-response context. It restricts credentials to the official endpoint and blocks redirects. Two local tools are available: `query_snapshot` and `verify_correction`. Model-selected tools are capped at 12 calls, queries at two seconds/200,000 VM steps, and investigations at 150,000 reported tokens. Token ceilings are checked after responses and do not guarantee a monetary hard cap. There are no automatic provider retries.
+All code in this repository was written between **Oct 28 and Nov 3, 2026**, inside the event's building window (Oct 27 – Nov 4).
 
-Each final diagnosis must reference executed evidence. Repairs are checked independently against complete per-order values rather than only the old metric total. SQLite authorization denies writes, attachments, metadata reads, recursive CTEs, and functions outside an allowlist. This is a local synthetic-data prototype, not an OS sandbox or a production database service. Evidence references alone do not prove every sentence in a model explanation is correct.
+| Date (PT) | Work |
+| --- | --- |
+| Oct 28 | Specification, hackathon research |
+| Oct 29 | Evidence engine: four-way replay, sandboxed SQL runner, per-order verifier, first Meta tool loop, 40 synthetic incidents |
+| Oct 29 | Custom JSON/CSV incidents, reports, CLI, no-tools baseline |
+| Nov 3 | Revenue bridge and impact breakdown |
+| Nov 3 | Agent v2: no raw rows to the model, parallel tool calls, reasoning summaries, `request_clarification` with pause and resume, `muse-wonder-1.0` reviewer with revision, voice and screenshot intake, realistic 4k-order and 42k-order incidents, live timeline UI, recorded runs, benchmark, safety guards |
 
-## Project documents
+## Project layout
 
-- [Verified hackathon brief](docs/HACKATHON_BRIEF.md)
-- [Project specification](docs/PROJECT_SPEC.md)
-- [Evaluation plan](docs/EVALUATION_PLAN.md)
-- [Submission checklist](docs/SUBMISSION_CHECKLIST.md)
-- [Build plan and current status](docs/BUILD_PLAN.md)
-- [Official resource links](docs/RESOURCES.md)
-- [Completion plan](docs/IMPLEMENTATION_PLAN.md)
-- [Validation evidence](docs/VALIDATION.md)
-- [Demo walkthrough](docs/DEMO.md)
-- [Submission draft](docs/SUBMISSION_DRAFT.md)
-
-Local validation: **78 tests passed**, with **20/20 development and 20/20 stress
-cases passing deterministic checks**. These are software/fixture results,
-not Meta model accuracy. See VALIDATION.md for the environment and limits.
-
-## Container option
-
-```sh
-docker build -t datatrace .
-docker run --rm -p 127.0.0.1:8501:8501 --env-file .env datatrace
+```
+src/datatrace/meta.py         Meta transport, agent loop, reviewer
+src/datatrace/intake.py       voice and screenshot intake
+src/datatrace/investigator.py replay, evidence, per-order verifier
+src/datatrace/runner.py       sandboxed SQLite
+src/datatrace/scenarios.py    realistic Black Friday incidents
+src/datatrace/ui.py           Streamlit app
+src/datatrace/evaluate.py     benchmark harness
+examples/recorded/            real captured Meta runs
+results/                      benchmark summary
 ```
 
-Container instructions are supplied but not validated in this environment. The application has no multi-user authentication and should remain local or behind your own access controls; it is not a ready-to-expose production service.
+## Limits
 
-## Competition requirements
-
-Public repository, meaningful Meta model use, event-built contributions, accessible three-minute demo video, and one submission per project. Submit by **November 4, 2026, 6:00 PM Pacific / 9:00 PM Eastern**. Verify the latest organizer updates before submitting.
-
-Source: [Participant guide](https://cerebralvalley.ai/e/meta-ai-developer-hackathon/details), reviewed October 28, 2026 Pacific.
-
-## Ownership and dependencies
-
-Follow the licenses of all third-party dependencies and datasets. A project distribution license has not yet been selected. Public repository visibility alone does not grant an open-source license. Use synthetic data for the submitted prototype.
+Synthetic data only. One SQL dialect (SQLite) and one metric family (order revenue). Evidence references and independent checks do not verify every sentence a model writes. The app has no multi-user authentication. MIT licensed.

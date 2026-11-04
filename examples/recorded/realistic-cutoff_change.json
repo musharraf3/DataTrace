@@ -1,0 +1,3883 @@
+{
+ "recorded_with": {
+  "agent": "muse-spark-1.3",
+  "reviewer": "muse-wonder-1.0",
+  "effort": "medium"
+ },
+ "report": {
+  "mode": "meta_live",
+  "status": "complete",
+  "model": "muse-spark-1.3",
+  "model_classification": "mixed_change",
+  "model_correction_sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
+  "model_summary": "Of the $122,621 increase from $189,317 to $311,938, $115,080 is genuine late-November paid sales (3,153 vs 1,995 orders) and $7,541 (85 orders dated 2026-12-01) is a defect from changing the end bound to inclusive.",
+  "consistency_issues": [],
+  "classification": "mixed_change",
+  "summary": "Of the $122,621 increase from $189,317 to $311,938, $115,080 is genuine late-November paid sales (3,153 vs 1,995 orders) and $7,541 (85 orders dated 2026-12-01) is a defect from changing the end bound to inclusive.",
+  "root_cause": "Current SQL uses order_date <= '2026-12-01' which includes December 1, violating the contract end_exclusive of 2026-12-01.",
+  "evidence_ids": [
+   "E1",
+   "E2",
+   "E4",
+   "E5",
+   "E7",
+   "E10"
+  ],
+  "correction_sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
+  "validation": {
+   "verified": true,
+   "evidence_id": "E11",
+   "expected_revenue_cents": 30439667,
+   "actual_revenue_cents": 30439667,
+   "missing_row_count": 0,
+   "unexpected_row_count": 0,
+   "missing_rows": [],
+   "unexpected_rows": [],
+   "reason": "Complete order/value multiset matches the metric contract."
+  },
+  "replay": [
+   {
+    "sql_version": "previous",
+    "snapshot": "previous",
+    "revenue_cents": 18931683,
+    "row_count": 1995,
+    "evidence_id": "E1"
+   },
+   {
+    "sql_version": "previous",
+    "snapshot": "current",
+    "revenue_cents": 30439667,
+    "row_count": 3153,
+    "evidence_id": "E2"
+   },
+   {
+    "sql_version": "current",
+    "snapshot": "previous",
+    "revenue_cents": 18931683,
+    "row_count": 1995,
+    "evidence_id": "E3"
+   },
+   {
+    "sql_version": "current",
+    "snapshot": "current",
+    "revenue_cents": 31193815,
+    "row_count": 3238,
+    "evidence_id": "E4"
+   }
+  ],
+  "reconciliation": {
+   "previous_expected_cents": 18931683,
+   "current_expected_cents": 30439667,
+   "underlying_change_cents": 11507984,
+   "previous_error_cents": 0,
+   "current_error_cents": 754148,
+   "current_evidence_id": "E4",
+   "affected_order_count": 85,
+   "affected_orders": [
+    {
+     "order_id": 103980,
+     "reported_cents": 44576,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 44576
+    },
+    {
+     "order_id": 103984,
+     "reported_cents": 32998,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 32998
+    },
+    {
+     "order_id": 103948,
+     "reported_cents": 24479,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 24479
+    },
+    {
+     "order_id": 103936,
+     "reported_cents": 24027,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 24027
+    },
+    {
+     "order_id": 103994,
+     "reported_cents": 23500,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 23500
+    },
+    {
+     "order_id": 103974,
+     "reported_cents": 21529,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 21529
+    },
+    {
+     "order_id": 103922,
+     "reported_cents": 19945,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 19945
+    },
+    {
+     "order_id": 103997,
+     "reported_cents": 19543,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 19543
+    },
+    {
+     "order_id": 103966,
+     "reported_cents": 18012,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 18012
+    },
+    {
+     "order_id": 103995,
+     "reported_cents": 16670,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 16670
+    },
+    {
+     "order_id": 103955,
+     "reported_cents": 16024,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 16024
+    },
+    {
+     "order_id": 103942,
+     "reported_cents": 15984,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 15984
+    },
+    {
+     "order_id": 103983,
+     "reported_cents": 15200,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 15200
+    },
+    {
+     "order_id": 103916,
+     "reported_cents": 14815,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 14815
+    },
+    {
+     "order_id": 103934,
+     "reported_cents": 14810,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 14810
+    },
+    {
+     "order_id": 103928,
+     "reported_cents": 13445,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 13445
+    },
+    {
+     "order_id": 103967,
+     "reported_cents": 13403,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 13403
+    },
+    {
+     "order_id": 103940,
+     "reported_cents": 12270,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 12270
+    },
+    {
+     "order_id": 103964,
+     "reported_cents": 11678,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 11678
+    },
+    {
+     "order_id": 103985,
+     "reported_cents": 10775,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 10775
+    },
+    {
+     "order_id": 103937,
+     "reported_cents": 10631,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 10631
+    },
+    {
+     "order_id": 103952,
+     "reported_cents": 10622,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 10622
+    },
+    {
+     "order_id": 103925,
+     "reported_cents": 9616,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 9616
+    },
+    {
+     "order_id": 103965,
+     "reported_cents": 9554,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 9554
+    },
+    {
+     "order_id": 103956,
+     "reported_cents": 9439,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 9439
+    },
+    {
+     "order_id": 103932,
+     "reported_cents": 9050,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 9050
+    },
+    {
+     "order_id": 103918,
+     "reported_cents": 8751,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 8751
+    },
+    {
+     "order_id": 103986,
+     "reported_cents": 8733,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 8733
+    },
+    {
+     "order_id": 103911,
+     "reported_cents": 8711,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 8711
+    },
+    {
+     "order_id": 103946,
+     "reported_cents": 8686,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 8686
+    },
+    {
+     "order_id": 103971,
+     "reported_cents": 8577,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 8577
+    },
+    {
+     "order_id": 103970,
+     "reported_cents": 8524,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 8524
+    },
+    {
+     "order_id": 103943,
+     "reported_cents": 8352,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 8352
+    },
+    {
+     "order_id": 103949,
+     "reported_cents": 8345,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 8345
+    },
+    {
+     "order_id": 103982,
+     "reported_cents": 8258,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 8258
+    },
+    {
+     "order_id": 104002,
+     "reported_cents": 8257,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 8257
+    },
+    {
+     "order_id": 103962,
+     "reported_cents": 8243,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 8243
+    },
+    {
+     "order_id": 103929,
+     "reported_cents": 8185,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 8185
+    },
+    {
+     "order_id": 103944,
+     "reported_cents": 7909,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 7909
+    },
+    {
+     "order_id": 103988,
+     "reported_cents": 7765,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 7765
+    },
+    {
+     "order_id": 103973,
+     "reported_cents": 7689,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 7689
+    },
+    {
+     "order_id": 103961,
+     "reported_cents": 7386,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 7386
+    },
+    {
+     "order_id": 103917,
+     "reported_cents": 7011,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 7011
+    },
+    {
+     "order_id": 103921,
+     "reported_cents": 6905,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 6905
+    },
+    {
+     "order_id": 103939,
+     "reported_cents": 6675,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 6675
+    },
+    {
+     "order_id": 103938,
+     "reported_cents": 6608,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 6608
+    },
+    {
+     "order_id": 103958,
+     "reported_cents": 6578,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 6578
+    },
+    {
+     "order_id": 103919,
+     "reported_cents": 6572,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 6572
+    },
+    {
+     "order_id": 104003,
+     "reported_cents": 6242,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 6242
+    },
+    {
+     "order_id": 103987,
+     "reported_cents": 6178,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 6178
+    },
+    {
+     "order_id": 103979,
+     "reported_cents": 5853,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 5853
+    },
+    {
+     "order_id": 103972,
+     "reported_cents": 5788,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 5788
+    },
+    {
+     "order_id": 103912,
+     "reported_cents": 5633,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 5633
+    },
+    {
+     "order_id": 103920,
+     "reported_cents": 5485,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 5485
+    },
+    {
+     "order_id": 103910,
+     "reported_cents": 5289,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 5289
+    },
+    {
+     "order_id": 103930,
+     "reported_cents": 5048,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 5048
+    },
+    {
+     "order_id": 103991,
+     "reported_cents": 4974,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 4974
+    },
+    {
+     "order_id": 103960,
+     "reported_cents": 4901,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 4901
+    },
+    {
+     "order_id": 103907,
+     "reported_cents": 4271,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 4271
+    },
+    {
+     "order_id": 103909,
+     "reported_cents": 4192,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 4192
+    },
+    {
+     "order_id": 104004,
+     "reported_cents": 4153,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 4153
+    },
+    {
+     "order_id": 103992,
+     "reported_cents": 4140,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 4140
+    },
+    {
+     "order_id": 103908,
+     "reported_cents": 3935,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 3935
+    },
+    {
+     "order_id": 104000,
+     "reported_cents": 3900,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 3900
+    },
+    {
+     "order_id": 103951,
+     "reported_cents": 3798,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 3798
+    },
+    {
+     "order_id": 103933,
+     "reported_cents": 3793,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 3793
+    },
+    {
+     "order_id": 103963,
+     "reported_cents": 3663,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 3663
+    },
+    {
+     "order_id": 103996,
+     "reported_cents": 3658,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 3658
+    },
+    {
+     "order_id": 103999,
+     "reported_cents": 3616,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 3616
+    },
+    {
+     "order_id": 103978,
+     "reported_cents": 3436,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 3436
+    },
+    {
+     "order_id": 103993,
+     "reported_cents": 3272,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 3272
+    },
+    {
+     "order_id": 103935,
+     "reported_cents": 3100,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 3100
+    },
+    {
+     "order_id": 103954,
+     "reported_cents": 3086,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 3086
+    },
+    {
+     "order_id": 103915,
+     "reported_cents": 2903,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 2903
+    },
+    {
+     "order_id": 103990,
+     "reported_cents": 2770,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 2770
+    },
+    {
+     "order_id": 103913,
+     "reported_cents": 2743,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 2743
+    },
+    {
+     "order_id": 103957,
+     "reported_cents": 2628,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 2628
+    },
+    {
+     "order_id": 103975,
+     "reported_cents": 2583,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 2583
+    },
+    {
+     "order_id": 103953,
+     "reported_cents": 2560,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 2560
+    },
+    {
+     "order_id": 103977,
+     "reported_cents": 2300,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 2300
+    },
+    {
+     "order_id": 103923,
+     "reported_cents": 2244,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 2244
+    },
+    {
+     "order_id": 103945,
+     "reported_cents": 2043,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 2043
+    },
+    {
+     "order_id": 103981,
+     "reported_cents": 1710,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 1710
+    },
+    {
+     "order_id": 103931,
+     "reported_cents": 1685,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 1685
+    },
+    {
+     "order_id": 103976,
+     "reported_cents": 1260,
+     "expected_cents": 0,
+     "reported_rows": 1,
+     "expected_rows": 0,
+     "difference_cents": 1260
+    }
+   ]
+  },
+  "evidence": [
+   {
+    "sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
+    "columns": [
+     "order_id",
+     "revenue_cents"
+    ],
+    "rows": [
+     [
+      100446,
+      7271
+     ],
+     [
+      100447,
+      26752
+     ],
+     [
+      100448,
+      4100
+     ],
+     [
+      100449,
+      3704
+     ],
+     [
+      100450,
+      18377
+     ],
+     [
+      100451,
+      24155
+     ],
+     [
+      100452,
+      1177
+     ],
+     [
+      100453,
+      5013
+     ],
+     [
+      100454,
+      4436
+     ],
+     [
+      100456,
+      2716
+     ],
+     [
+      100458,
+      3926
+     ],
+     [
+      100459,
+      18939
+     ],
+     [
+      100460,
+      9389
+     ],
+     [
+      100462,
+      4315
+     ],
+     [
+      100463,
+      1997
+     ],
+     [
+      100464,
+      2935
+     ],
+     [
+      100465,
+      3530
+     ],
+     [
+      100466,
+      17941
+     ],
+     [
+      100467,
+      11827
+     ],
+     [
+      100468,
+      4078
+     ],
+     [
+      100469,
+      1550
+     ],
+     [
+      100470,
+      10091
+     ],
+     [
+      100472,
+      4045
+     ],
+     [
+      100473,
+      4703
+     ],
+     [
+      100474,
+      17197
+     ],
+     [
+      100477,
+      10648
+     ],
+     [
+      100478,
+      15915
+     ],
+     [
+      100479,
+      3218
+     ],
+     [
+      100480,
+      37913
+     ],
+     [
+      100481,
+      8991
+     ],
+     [
+      100482,
+      14959
+     ],
+     [
+      100483,
+      12611
+     ],
+     [
+      100484,
+      35431
+     ],
+     [
+      100486,
+      8135
+     ],
+     [
+      100488,
+      4165
+     ],
+     [
+      100489,
+      5747
+     ],
+     [
+      100490,
+      4827
+     ],
+     [
+      100491,
+      10221
+     ],
+     [
+      100492,
+      4613
+     ],
+     [
+      100493,
+      5413
+     ],
+     [
+      100494,
+      7558
+     ],
+     [
+      100495,
+      10193
+     ],
+     [
+      100497,
+      9836
+     ],
+     [
+      100498,
+      3355
+     ],
+     [
+      100499,
+      4476
+     ],
+     [
+      100500,
+      4036
+     ],
+     [
+      100501,
+      8839
+     ],
+     [
+      100503,
+      13186
+     ],
+     [
+      100504,
+      7490
+     ],
+     [
+      100505,
+      20226
+     ],
+     [
+      100506,
+      11644
+     ],
+     [
+      100507,
+      6608
+     ],
+     [
+      100509,
+      7036
+     ],
+     [
+      100510,
+      13712
+     ],
+     [
+      100511,
+      13520
+     ],
+     [
+      100512,
+      29094
+     ],
+     [
+      100513,
+      952
+     ],
+     [
+      100514,
+      3979
+     ],
+     [
+      100515,
+      9322
+     ],
+     [
+      100516,
+      5634
+     ],
+     [
+      100517,
+      5117
+     ],
+     [
+      100518,
+      10796
+     ],
+     [
+      100519,
+      11463
+     ],
+     [
+      100520,
+      5177
+     ],
+     [
+      100521,
+      2309
+     ],
+     [
+      100522,
+      14609
+     ],
+     [
+      100523,
+      18635
+     ],
+     [
+      100524,
+      5617
+     ],
+     [
+      100525,
+      8635
+     ],
+     [
+      100526,
+      22545
+     ],
+     [
+      100528,
+      13063
+     ],
+     [
+      100529,
+      3444
+     ],
+     [
+      100530,
+      3850
+     ],
+     [
+      100531,
+      6358
+     ],
+     [
+      100532,
+      12039
+     ],
+     [
+      100534,
+      3434
+     ],
+     [
+      100535,
+      7322
+     ],
+     [
+      100536,
+      21159
+     ],
+     [
+      100537,
+      3574
+     ],
+     [
+      100538,
+      18612
+     ],
+     [
+      100539,
+      7866
+     ],
+     [
+      100540,
+      11093
+     ],
+     [
+      100541,
+      14094
+     ],
+     [
+      100542,
+      14822
+     ],
+     [
+      100544,
+      20056
+     ],
+     [
+      100545,
+      20058
+     ],
+     [
+      100546,
+      3608
+     ],
+     [
+      100547,
+      7187
+     ],
+     [
+      100549,
+      36992
+     ],
+     [
+      100550,
+      9796
+     ],
+     [
+      100551,
+      24293
+     ],
+     [
+      100552,
+      17904
+     ],
+     [
+      100553,
+      15632
+     ],
+     [
+      100554,
+      21574
+     ],
+     [
+      100555,
+      2296
+     ],
+     [
+      100557,
+      5710
+     ],
+     [
+      100558,
+      11164
+     ],
+     [
+      100559,
+      14070
+     ],
+     [
+      100560,
+      25240
+     ],
+     [
+      100561,
+      15459
+     ]
+    ],
+    "truncated": true,
+    "elapsed_ms": 94.0,
+    "evidence_id": "E1",
+    "snapshot": "previous",
+    "total_row_count": 1995,
+    "revenue_cents": 18931683
+   },
+   {
+    "sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
+    "columns": [
+     "order_id",
+     "revenue_cents"
+    ],
+    "rows": [
+     [
+      100446,
+      7271
+     ],
+     [
+      100447,
+      26752
+     ],
+     [
+      100448,
+      4100
+     ],
+     [
+      100449,
+      3704
+     ],
+     [
+      100450,
+      18377
+     ],
+     [
+      100451,
+      24155
+     ],
+     [
+      100452,
+      1177
+     ],
+     [
+      100453,
+      5013
+     ],
+     [
+      100454,
+      4436
+     ],
+     [
+      100456,
+      2716
+     ],
+     [
+      100458,
+      3926
+     ],
+     [
+      100459,
+      18939
+     ],
+     [
+      100460,
+      9389
+     ],
+     [
+      100462,
+      4315
+     ],
+     [
+      100463,
+      1997
+     ],
+     [
+      100464,
+      2935
+     ],
+     [
+      100465,
+      3530
+     ],
+     [
+      100466,
+      17941
+     ],
+     [
+      100467,
+      11827
+     ],
+     [
+      100468,
+      4078
+     ],
+     [
+      100469,
+      1550
+     ],
+     [
+      100470,
+      10091
+     ],
+     [
+      100472,
+      4045
+     ],
+     [
+      100473,
+      4703
+     ],
+     [
+      100474,
+      17197
+     ],
+     [
+      100475,
+      25291
+     ],
+     [
+      100476,
+      19732
+     ],
+     [
+      100477,
+      10648
+     ],
+     [
+      100478,
+      15915
+     ],
+     [
+      100479,
+      3218
+     ],
+     [
+      100480,
+      37913
+     ],
+     [
+      100481,
+      8991
+     ],
+     [
+      100482,
+      14959
+     ],
+     [
+      100483,
+      12611
+     ],
+     [
+      100484,
+      35431
+     ],
+     [
+      100486,
+      8135
+     ],
+     [
+      100488,
+      4165
+     ],
+     [
+      100489,
+      5747
+     ],
+     [
+      100490,
+      4827
+     ],
+     [
+      100491,
+      10221
+     ],
+     [
+      100492,
+      4613
+     ],
+     [
+      100493,
+      5413
+     ],
+     [
+      100494,
+      7558
+     ],
+     [
+      100495,
+      10193
+     ],
+     [
+      100497,
+      9836
+     ],
+     [
+      100498,
+      3355
+     ],
+     [
+      100499,
+      4476
+     ],
+     [
+      100500,
+      4036
+     ],
+     [
+      100501,
+      8839
+     ],
+     [
+      100503,
+      13186
+     ],
+     [
+      100504,
+      7490
+     ],
+     [
+      100505,
+      20226
+     ],
+     [
+      100506,
+      11644
+     ],
+     [
+      100507,
+      6608
+     ],
+     [
+      100509,
+      7036
+     ],
+     [
+      100510,
+      13712
+     ],
+     [
+      100511,
+      13520
+     ],
+     [
+      100512,
+      29094
+     ],
+     [
+      100513,
+      952
+     ],
+     [
+      100514,
+      3979
+     ],
+     [
+      100515,
+      9322
+     ],
+     [
+      100516,
+      5634
+     ],
+     [
+      100517,
+      5117
+     ],
+     [
+      100518,
+      10796
+     ],
+     [
+      100519,
+      11463
+     ],
+     [
+      100520,
+      5177
+     ],
+     [
+      100521,
+      2309
+     ],
+     [
+      100522,
+      14609
+     ],
+     [
+      100523,
+      18635
+     ],
+     [
+      100524,
+      5617
+     ],
+     [
+      100525,
+      8635
+     ],
+     [
+      100526,
+      22545
+     ],
+     [
+      100528,
+      13063
+     ],
+     [
+      100529,
+      3444
+     ],
+     [
+      100530,
+      3850
+     ],
+     [
+      100531,
+      6358
+     ],
+     [
+      100532,
+      12039
+     ],
+     [
+      100534,
+      3434
+     ],
+     [
+      100535,
+      7322
+     ],
+     [
+      100536,
+      21159
+     ],
+     [
+      100537,
+      3574
+     ],
+     [
+      100538,
+      18612
+     ],
+     [
+      100539,
+      7866
+     ],
+     [
+      100540,
+      11093
+     ],
+     [
+      100541,
+      14094
+     ],
+     [
+      100542,
+      14822
+     ],
+     [
+      100544,
+      20056
+     ],
+     [
+      100545,
+      20058
+     ],
+     [
+      100546,
+      3608
+     ],
+     [
+      100547,
+      7187
+     ],
+     [
+      100548,
+      8739
+     ],
+     [
+      100549,
+      36992
+     ],
+     [
+      100550,
+      9796
+     ],
+     [
+      100551,
+      24293
+     ],
+     [
+      100552,
+      17904
+     ],
+     [
+      100553,
+      15632
+     ],
+     [
+      100554,
+      21574
+     ],
+     [
+      100555,
+      2296
+     ],
+     [
+      100557,
+      5710
+     ],
+     [
+      100558,
+      11164
+     ]
+    ],
+    "truncated": true,
+    "elapsed_ms": 140.0,
+    "evidence_id": "E2",
+    "snapshot": "current",
+    "total_row_count": 3153,
+    "revenue_cents": 30439667
+   },
+   {
+    "sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date <= '2026-12-01' AND kind <> 'refund'",
+    "columns": [
+     "order_id",
+     "revenue_cents"
+    ],
+    "rows": [
+     [
+      100446,
+      7271
+     ],
+     [
+      100447,
+      26752
+     ],
+     [
+      100448,
+      4100
+     ],
+     [
+      100449,
+      3704
+     ],
+     [
+      100450,
+      18377
+     ],
+     [
+      100451,
+      24155
+     ],
+     [
+      100452,
+      1177
+     ],
+     [
+      100453,
+      5013
+     ],
+     [
+      100454,
+      4436
+     ],
+     [
+      100456,
+      2716
+     ],
+     [
+      100458,
+      3926
+     ],
+     [
+      100459,
+      18939
+     ],
+     [
+      100460,
+      9389
+     ],
+     [
+      100462,
+      4315
+     ],
+     [
+      100463,
+      1997
+     ],
+     [
+      100464,
+      2935
+     ],
+     [
+      100465,
+      3530
+     ],
+     [
+      100466,
+      17941
+     ],
+     [
+      100467,
+      11827
+     ],
+     [
+      100468,
+      4078
+     ],
+     [
+      100469,
+      1550
+     ],
+     [
+      100470,
+      10091
+     ],
+     [
+      100472,
+      4045
+     ],
+     [
+      100473,
+      4703
+     ],
+     [
+      100474,
+      17197
+     ],
+     [
+      100477,
+      10648
+     ],
+     [
+      100478,
+      15915
+     ],
+     [
+      100479,
+      3218
+     ],
+     [
+      100480,
+      37913
+     ],
+     [
+      100481,
+      8991
+     ],
+     [
+      100482,
+      14959
+     ],
+     [
+      100483,
+      12611
+     ],
+     [
+      100484,
+      35431
+     ],
+     [
+      100486,
+      8135
+     ],
+     [
+      100488,
+      4165
+     ],
+     [
+      100489,
+      5747
+     ],
+     [
+      100490,
+      4827
+     ],
+     [
+      100491,
+      10221
+     ],
+     [
+      100492,
+      4613
+     ],
+     [
+      100493,
+      5413
+     ],
+     [
+      100494,
+      7558
+     ],
+     [
+      100495,
+      10193
+     ],
+     [
+      100497,
+      9836
+     ],
+     [
+      100498,
+      3355
+     ],
+     [
+      100499,
+      4476
+     ],
+     [
+      100500,
+      4036
+     ],
+     [
+      100501,
+      8839
+     ],
+     [
+      100503,
+      13186
+     ],
+     [
+      100504,
+      7490
+     ],
+     [
+      100505,
+      20226
+     ],
+     [
+      100506,
+      11644
+     ],
+     [
+      100507,
+      6608
+     ],
+     [
+      100509,
+      7036
+     ],
+     [
+      100510,
+      13712
+     ],
+     [
+      100511,
+      13520
+     ],
+     [
+      100512,
+      29094
+     ],
+     [
+      100513,
+      952
+     ],
+     [
+      100514,
+      3979
+     ],
+     [
+      100515,
+      9322
+     ],
+     [
+      100516,
+      5634
+     ],
+     [
+      100517,
+      5117
+     ],
+     [
+      100518,
+      10796
+     ],
+     [
+      100519,
+      11463
+     ],
+     [
+      100520,
+      5177
+     ],
+     [
+      100521,
+      2309
+     ],
+     [
+      100522,
+      14609
+     ],
+     [
+      100523,
+      18635
+     ],
+     [
+      100524,
+      5617
+     ],
+     [
+      100525,
+      8635
+     ],
+     [
+      100526,
+      22545
+     ],
+     [
+      100528,
+      13063
+     ],
+     [
+      100529,
+      3444
+     ],
+     [
+      100530,
+      3850
+     ],
+     [
+      100531,
+      6358
+     ],
+     [
+      100532,
+      12039
+     ],
+     [
+      100534,
+      3434
+     ],
+     [
+      100535,
+      7322
+     ],
+     [
+      100536,
+      21159
+     ],
+     [
+      100537,
+      3574
+     ],
+     [
+      100538,
+      18612
+     ],
+     [
+      100539,
+      7866
+     ],
+     [
+      100540,
+      11093
+     ],
+     [
+      100541,
+      14094
+     ],
+     [
+      100542,
+      14822
+     ],
+     [
+      100544,
+      20056
+     ],
+     [
+      100545,
+      20058
+     ],
+     [
+      100546,
+      3608
+     ],
+     [
+      100547,
+      7187
+     ],
+     [
+      100549,
+      36992
+     ],
+     [
+      100550,
+      9796
+     ],
+     [
+      100551,
+      24293
+     ],
+     [
+      100552,
+      17904
+     ],
+     [
+      100553,
+      15632
+     ],
+     [
+      100554,
+      21574
+     ],
+     [
+      100555,
+      2296
+     ],
+     [
+      100557,
+      5710
+     ],
+     [
+      100558,
+      11164
+     ],
+     [
+      100559,
+      14070
+     ],
+     [
+      100560,
+      25240
+     ],
+     [
+      100561,
+      15459
+     ]
+    ],
+    "truncated": true,
+    "elapsed_ms": 110.0,
+    "evidence_id": "E3",
+    "snapshot": "previous",
+    "total_row_count": 1995,
+    "revenue_cents": 18931683
+   },
+   {
+    "sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date <= '2026-12-01' AND kind <> 'refund'",
+    "columns": [
+     "order_id",
+     "revenue_cents"
+    ],
+    "rows": [
+     [
+      100446,
+      7271
+     ],
+     [
+      100447,
+      26752
+     ],
+     [
+      100448,
+      4100
+     ],
+     [
+      100449,
+      3704
+     ],
+     [
+      100450,
+      18377
+     ],
+     [
+      100451,
+      24155
+     ],
+     [
+      100452,
+      1177
+     ],
+     [
+      100453,
+      5013
+     ],
+     [
+      100454,
+      4436
+     ],
+     [
+      100456,
+      2716
+     ],
+     [
+      100458,
+      3926
+     ],
+     [
+      100459,
+      18939
+     ],
+     [
+      100460,
+      9389
+     ],
+     [
+      100462,
+      4315
+     ],
+     [
+      100463,
+      1997
+     ],
+     [
+      100464,
+      2935
+     ],
+     [
+      100465,
+      3530
+     ],
+     [
+      100466,
+      17941
+     ],
+     [
+      100467,
+      11827
+     ],
+     [
+      100468,
+      4078
+     ],
+     [
+      100469,
+      1550
+     ],
+     [
+      100470,
+      10091
+     ],
+     [
+      100472,
+      4045
+     ],
+     [
+      100473,
+      4703
+     ],
+     [
+      100474,
+      17197
+     ],
+     [
+      100475,
+      25291
+     ],
+     [
+      100476,
+      19732
+     ],
+     [
+      100477,
+      10648
+     ],
+     [
+      100478,
+      15915
+     ],
+     [
+      100479,
+      3218
+     ],
+     [
+      100480,
+      37913
+     ],
+     [
+      100481,
+      8991
+     ],
+     [
+      100482,
+      14959
+     ],
+     [
+      100483,
+      12611
+     ],
+     [
+      100484,
+      35431
+     ],
+     [
+      100486,
+      8135
+     ],
+     [
+      100488,
+      4165
+     ],
+     [
+      100489,
+      5747
+     ],
+     [
+      100490,
+      4827
+     ],
+     [
+      100491,
+      10221
+     ],
+     [
+      100492,
+      4613
+     ],
+     [
+      100493,
+      5413
+     ],
+     [
+      100494,
+      7558
+     ],
+     [
+      100495,
+      10193
+     ],
+     [
+      100497,
+      9836
+     ],
+     [
+      100498,
+      3355
+     ],
+     [
+      100499,
+      4476
+     ],
+     [
+      100500,
+      4036
+     ],
+     [
+      100501,
+      8839
+     ],
+     [
+      100503,
+      13186
+     ],
+     [
+      100504,
+      7490
+     ],
+     [
+      100505,
+      20226
+     ],
+     [
+      100506,
+      11644
+     ],
+     [
+      100507,
+      6608
+     ],
+     [
+      100509,
+      7036
+     ],
+     [
+      100510,
+      13712
+     ],
+     [
+      100511,
+      13520
+     ],
+     [
+      100512,
+      29094
+     ],
+     [
+      100513,
+      952
+     ],
+     [
+      100514,
+      3979
+     ],
+     [
+      100515,
+      9322
+     ],
+     [
+      100516,
+      5634
+     ],
+     [
+      100517,
+      5117
+     ],
+     [
+      100518,
+      10796
+     ],
+     [
+      100519,
+      11463
+     ],
+     [
+      100520,
+      5177
+     ],
+     [
+      100521,
+      2309
+     ],
+     [
+      100522,
+      14609
+     ],
+     [
+      100523,
+      18635
+     ],
+     [
+      100524,
+      5617
+     ],
+     [
+      100525,
+      8635
+     ],
+     [
+      100526,
+      22545
+     ],
+     [
+      100528,
+      13063
+     ],
+     [
+      100529,
+      3444
+     ],
+     [
+      100530,
+      3850
+     ],
+     [
+      100531,
+      6358
+     ],
+     [
+      100532,
+      12039
+     ],
+     [
+      100534,
+      3434
+     ],
+     [
+      100535,
+      7322
+     ],
+     [
+      100536,
+      21159
+     ],
+     [
+      100537,
+      3574
+     ],
+     [
+      100538,
+      18612
+     ],
+     [
+      100539,
+      7866
+     ],
+     [
+      100540,
+      11093
+     ],
+     [
+      100541,
+      14094
+     ],
+     [
+      100542,
+      14822
+     ],
+     [
+      100544,
+      20056
+     ],
+     [
+      100545,
+      20058
+     ],
+     [
+      100546,
+      3608
+     ],
+     [
+      100547,
+      7187
+     ],
+     [
+      100548,
+      8739
+     ],
+     [
+      100549,
+      36992
+     ],
+     [
+      100550,
+      9796
+     ],
+     [
+      100551,
+      24293
+     ],
+     [
+      100552,
+      17904
+     ],
+     [
+      100553,
+      15632
+     ],
+     [
+      100554,
+      21574
+     ],
+     [
+      100555,
+      2296
+     ],
+     [
+      100557,
+      5710
+     ],
+     [
+      100558,
+      11164
+     ]
+    ],
+    "truncated": true,
+    "elapsed_ms": 172.0,
+    "evidence_id": "E4",
+    "snapshot": "current",
+    "total_row_count": 3238,
+    "revenue_cents": 31193815
+   },
+   {
+    "sql": "SELECT COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE status = 'paid' AND kind <> 'refund' AND order_date = '2026-12-01'",
+    "columns": [
+     "n",
+     "s"
+    ],
+    "rows": [
+     [
+      85,
+      754148
+     ]
+    ],
+    "truncated": false,
+    "elapsed_ms": 0.0,
+    "evidence_id": "E5",
+    "snapshot": "current"
+   },
+   {
+    "sql": "SELECT COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE status = 'paid' AND kind <> 'refund' AND order_date >= '2026-11-25' AND order_date < '2026-12-01'",
+    "columns": [
+     "n",
+     "s"
+    ],
+    "rows": [
+     [
+      1077,
+      10676098
+     ]
+    ],
+    "truncated": false,
+    "elapsed_ms": 15.0,
+    "evidence_id": "E6",
+    "snapshot": "current"
+   },
+   {
+    "sql": "SELECT COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE status = 'paid' AND kind <> 'refund' AND order_date >= '2026-12-01'",
+    "columns": [
+     "n",
+     "s"
+    ],
+    "rows": [
+     [
+      0,
+      null
+     ]
+    ],
+    "truncated": false,
+    "elapsed_ms": 0.0,
+    "evidence_id": "E7",
+    "snapshot": "previous"
+   },
+   {
+    "sql": "SELECT status, kind, COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY status, kind ORDER BY status, kind",
+    "columns": [
+     "status",
+     "kind",
+     "n",
+     "s"
+    ],
+    "rows": [
+     [
+      "cancelled",
+      "sale",
+      162,
+      1797428
+     ],
+     [
+      "paid",
+      "refund",
+      104,
+      -851190
+     ],
+     [
+      "paid",
+      "sale",
+      3153,
+      30439667
+     ],
+     [
+      "pending",
+      "sale",
+      146,
+      1582488
+     ]
+    ],
+    "truncated": false,
+    "elapsed_ms": 0.0,
+    "evidence_id": "E8",
+    "snapshot": "current"
+   },
+   {
+    "sql": "SELECT COUNT(*) AS n, SUM(o.revenue_cents) AS s FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.status = 'paid' AND o.kind <> 'refund' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND c.customer_id IS NULL",
+    "columns": [
+     "n",
+     "s"
+    ],
+    "rows": [
+     [
+      131,
+      1155491
+     ]
+    ],
+    "truncated": false,
+    "elapsed_ms": 0.0,
+    "evidence_id": "E9",
+    "snapshot": "current"
+   },
+   {
+    "sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
+    "columns": [
+     "order_id",
+     "revenue_cents"
+    ],
+    "rows": [
+     [
+      100446,
+      7271
+     ],
+     [
+      100447,
+      26752
+     ],
+     [
+      100448,
+      4100
+     ],
+     [
+      100449,
+      3704
+     ],
+     [
+      100450,
+      18377
+     ],
+     [
+      100451,
+      24155
+     ],
+     [
+      100452,
+      1177
+     ],
+     [
+      100453,
+      5013
+     ],
+     [
+      100454,
+      4436
+     ],
+     [
+      100456,
+      2716
+     ],
+     [
+      100458,
+      3926
+     ],
+     [
+      100459,
+      18939
+     ],
+     [
+      100460,
+      9389
+     ],
+     [
+      100462,
+      4315
+     ],
+     [
+      100463,
+      1997
+     ],
+     [
+      100464,
+      2935
+     ],
+     [
+      100465,
+      3530
+     ],
+     [
+      100466,
+      17941
+     ],
+     [
+      100467,
+      11827
+     ],
+     [
+      100468,
+      4078
+     ],
+     [
+      100469,
+      1550
+     ],
+     [
+      100470,
+      10091
+     ],
+     [
+      100472,
+      4045
+     ],
+     [
+      100473,
+      4703
+     ],
+     [
+      100474,
+      17197
+     ],
+     [
+      100475,
+      25291
+     ],
+     [
+      100476,
+      19732
+     ],
+     [
+      100477,
+      10648
+     ],
+     [
+      100478,
+      15915
+     ],
+     [
+      100479,
+      3218
+     ],
+     [
+      100480,
+      37913
+     ],
+     [
+      100481,
+      8991
+     ],
+     [
+      100482,
+      14959
+     ],
+     [
+      100483,
+      12611
+     ],
+     [
+      100484,
+      35431
+     ],
+     [
+      100486,
+      8135
+     ],
+     [
+      100488,
+      4165
+     ],
+     [
+      100489,
+      5747
+     ],
+     [
+      100490,
+      4827
+     ],
+     [
+      100491,
+      10221
+     ],
+     [
+      100492,
+      4613
+     ],
+     [
+      100493,
+      5413
+     ],
+     [
+      100494,
+      7558
+     ],
+     [
+      100495,
+      10193
+     ],
+     [
+      100497,
+      9836
+     ],
+     [
+      100498,
+      3355
+     ],
+     [
+      100499,
+      4476
+     ],
+     [
+      100500,
+      4036
+     ],
+     [
+      100501,
+      8839
+     ],
+     [
+      100503,
+      13186
+     ],
+     [
+      100504,
+      7490
+     ],
+     [
+      100505,
+      20226
+     ],
+     [
+      100506,
+      11644
+     ],
+     [
+      100507,
+      6608
+     ],
+     [
+      100509,
+      7036
+     ],
+     [
+      100510,
+      13712
+     ],
+     [
+      100511,
+      13520
+     ],
+     [
+      100512,
+      29094
+     ],
+     [
+      100513,
+      952
+     ],
+     [
+      100514,
+      3979
+     ],
+     [
+      100515,
+      9322
+     ],
+     [
+      100516,
+      5634
+     ],
+     [
+      100517,
+      5117
+     ],
+     [
+      100518,
+      10796
+     ],
+     [
+      100519,
+      11463
+     ],
+     [
+      100520,
+      5177
+     ],
+     [
+      100521,
+      2309
+     ],
+     [
+      100522,
+      14609
+     ],
+     [
+      100523,
+      18635
+     ],
+     [
+      100524,
+      5617
+     ],
+     [
+      100525,
+      8635
+     ],
+     [
+      100526,
+      22545
+     ],
+     [
+      100528,
+      13063
+     ],
+     [
+      100529,
+      3444
+     ],
+     [
+      100530,
+      3850
+     ],
+     [
+      100531,
+      6358
+     ],
+     [
+      100532,
+      12039
+     ],
+     [
+      100534,
+      3434
+     ],
+     [
+      100535,
+      7322
+     ],
+     [
+      100536,
+      21159
+     ],
+     [
+      100537,
+      3574
+     ],
+     [
+      100538,
+      18612
+     ],
+     [
+      100539,
+      7866
+     ],
+     [
+      100540,
+      11093
+     ],
+     [
+      100541,
+      14094
+     ],
+     [
+      100542,
+      14822
+     ],
+     [
+      100544,
+      20056
+     ],
+     [
+      100545,
+      20058
+     ],
+     [
+      100546,
+      3608
+     ],
+     [
+      100547,
+      7187
+     ],
+     [
+      100548,
+      8739
+     ],
+     [
+      100549,
+      36992
+     ],
+     [
+      100550,
+      9796
+     ],
+     [
+      100551,
+      24293
+     ],
+     [
+      100552,
+      17904
+     ],
+     [
+      100553,
+      15632
+     ],
+     [
+      100554,
+      21574
+     ],
+     [
+      100555,
+      2296
+     ],
+     [
+      100557,
+      5710
+     ],
+     [
+      100558,
+      11164
+     ]
+    ],
+    "truncated": true,
+    "elapsed_ms": 0.0,
+    "evidence_id": "E10",
+    "snapshot": "current",
+    "total_row_count": 3153
+   },
+   {
+    "sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
+    "columns": [
+     "order_id",
+     "revenue_cents"
+    ],
+    "rows": [
+     [
+      100446,
+      7271
+     ],
+     [
+      100447,
+      26752
+     ],
+     [
+      100448,
+      4100
+     ],
+     [
+      100449,
+      3704
+     ],
+     [
+      100450,
+      18377
+     ],
+     [
+      100451,
+      24155
+     ],
+     [
+      100452,
+      1177
+     ],
+     [
+      100453,
+      5013
+     ],
+     [
+      100454,
+      4436
+     ],
+     [
+      100456,
+      2716
+     ],
+     [
+      100458,
+      3926
+     ],
+     [
+      100459,
+      18939
+     ],
+     [
+      100460,
+      9389
+     ],
+     [
+      100462,
+      4315
+     ],
+     [
+      100463,
+      1997
+     ],
+     [
+      100464,
+      2935
+     ],
+     [
+      100465,
+      3530
+     ],
+     [
+      100466,
+      17941
+     ],
+     [
+      100467,
+      11827
+     ],
+     [
+      100468,
+      4078
+     ],
+     [
+      100469,
+      1550
+     ],
+     [
+      100470,
+      10091
+     ],
+     [
+      100472,
+      4045
+     ],
+     [
+      100473,
+      4703
+     ],
+     [
+      100474,
+      17197
+     ],
+     [
+      100475,
+      25291
+     ],
+     [
+      100476,
+      19732
+     ],
+     [
+      100477,
+      10648
+     ],
+     [
+      100478,
+      15915
+     ],
+     [
+      100479,
+      3218
+     ],
+     [
+      100480,
+      37913
+     ],
+     [
+      100481,
+      8991
+     ],
+     [
+      100482,
+      14959
+     ],
+     [
+      100483,
+      12611
+     ],
+     [
+      100484,
+      35431
+     ],
+     [
+      100486,
+      8135
+     ],
+     [
+      100488,
+      4165
+     ],
+     [
+      100489,
+      5747
+     ],
+     [
+      100490,
+      4827
+     ],
+     [
+      100491,
+      10221
+     ],
+     [
+      100492,
+      4613
+     ],
+     [
+      100493,
+      5413
+     ],
+     [
+      100494,
+      7558
+     ],
+     [
+      100495,
+      10193
+     ],
+     [
+      100497,
+      9836
+     ],
+     [
+      100498,
+      3355
+     ],
+     [
+      100499,
+      4476
+     ],
+     [
+      100500,
+      4036
+     ],
+     [
+      100501,
+      8839
+     ],
+     [
+      100503,
+      13186
+     ],
+     [
+      100504,
+      7490
+     ],
+     [
+      100505,
+      20226
+     ],
+     [
+      100506,
+      11644
+     ],
+     [
+      100507,
+      6608
+     ],
+     [
+      100509,
+      7036
+     ],
+     [
+      100510,
+      13712
+     ],
+     [
+      100511,
+      13520
+     ],
+     [
+      100512,
+      29094
+     ],
+     [
+      100513,
+      952
+     ],
+     [
+      100514,
+      3979
+     ],
+     [
+      100515,
+      9322
+     ],
+     [
+      100516,
+      5634
+     ],
+     [
+      100517,
+      5117
+     ],
+     [
+      100518,
+      10796
+     ],
+     [
+      100519,
+      11463
+     ],
+     [
+      100520,
+      5177
+     ],
+     [
+      100521,
+      2309
+     ],
+     [
+      100522,
+      14609
+     ],
+     [
+      100523,
+      18635
+     ],
+     [
+      100524,
+      5617
+     ],
+     [
+      100525,
+      8635
+     ],
+     [
+      100526,
+      22545
+     ],
+     [
+      100528,
+      13063
+     ],
+     [
+      100529,
+      3444
+     ],
+     [
+      100530,
+      3850
+     ],
+     [
+      100531,
+      6358
+     ],
+     [
+      100532,
+      12039
+     ],
+     [
+      100534,
+      3434
+     ],
+     [
+      100535,
+      7322
+     ],
+     [
+      100536,
+      21159
+     ],
+     [
+      100537,
+      3574
+     ],
+     [
+      100538,
+      18612
+     ],
+     [
+      100539,
+      7866
+     ],
+     [
+      100540,
+      11093
+     ],
+     [
+      100541,
+      14094
+     ],
+     [
+      100542,
+      14822
+     ],
+     [
+      100544,
+      20056
+     ],
+     [
+      100545,
+      20058
+     ],
+     [
+      100546,
+      3608
+     ],
+     [
+      100547,
+      7187
+     ],
+     [
+      100548,
+      8739
+     ],
+     [
+      100549,
+      36992
+     ],
+     [
+      100550,
+      9796
+     ],
+     [
+      100551,
+      24293
+     ],
+     [
+      100552,
+      17904
+     ],
+     [
+      100553,
+      15632
+     ],
+     [
+      100554,
+      21574
+     ],
+     [
+      100555,
+      2296
+     ],
+     [
+      100557,
+      5710
+     ],
+     [
+      100558,
+      11164
+     ]
+    ],
+    "truncated": true,
+    "elapsed_ms": 16.0,
+    "evidence_id": "E11",
+    "snapshot": "current",
+    "total_row_count": 3153
+   }
+  ],
+  "trace": [
+   {
+    "tool": "query_snapshot",
+    "arguments": "{\"purpose\":\"Test Dec1 out-of-range inclusion\",\"snapshot\":\"current\",\"sql\":\"SELECT COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE status = 'paid' AND kind <> 'refund' AND order_date = '2026-12-01'\"}",
+    "result": {
+     "sql": "SELECT COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE status = 'paid' AND kind <> 'refund' AND order_date = '2026-12-01'",
+     "columns": [
+      "n",
+      "s"
+     ],
+     "rows": [
+      [
+       85,
+       754148
+      ]
+     ],
+     "truncated": false,
+     "elapsed_ms": 0.0,
+     "evidence_id": "E5",
+     "snapshot": "current"
+    }
+   },
+   {
+    "tool": "query_snapshot",
+    "arguments": "{\"purpose\":\"Quantify late-November genuine growth\",\"snapshot\":\"current\",\"sql\":\"SELECT COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE status = 'paid' AND kind <> 'refund' AND order_date >= '2026-11-25' AND order_date < '2026-12-01'\"}",
+    "result": {
+     "sql": "SELECT COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE status = 'paid' AND kind <> 'refund' AND order_date >= '2026-11-25' AND order_date < '2026-12-01'",
+     "columns": [
+      "n",
+      "s"
+     ],
+     "rows": [
+      [
+       1077,
+       10676098
+      ]
+     ],
+     "truncated": false,
+     "elapsed_ms": 15.0,
+     "evidence_id": "E6",
+     "snapshot": "current"
+    }
+   },
+   {
+    "tool": "query_snapshot",
+    "arguments": "{\"purpose\":\"Confirm previous had no Dec1 rows\",\"snapshot\":\"previous\",\"sql\":\"SELECT COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE status = 'paid' AND kind <> 'refund' AND order_date >= '2026-12-01'\"}",
+    "result": {
+     "sql": "SELECT COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE status = 'paid' AND kind <> 'refund' AND order_date >= '2026-12-01'",
+     "columns": [
+      "n",
+      "s"
+     ],
+     "rows": [
+      [
+       0,
+       null
+      ]
+     ],
+     "truncated": false,
+     "elapsed_ms": 0.0,
+     "evidence_id": "E7",
+     "snapshot": "previous"
+    }
+   },
+   {
+    "tool": "query_snapshot",
+    "arguments": "{\"purpose\":\"Check status refund filter effects\",\"snapshot\":\"current\",\"sql\":\"SELECT status, kind, COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY status, kind ORDER BY status, kind\"}",
+    "result": {
+     "sql": "SELECT status, kind, COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY status, kind ORDER BY status, kind",
+     "columns": [
+      "status",
+      "kind",
+      "n",
+      "s"
+     ],
+     "rows": [
+      [
+       "cancelled",
+       "sale",
+       162,
+       1797428
+      ],
+      [
+       "paid",
+       "refund",
+       104,
+       -851190
+      ],
+      [
+       "paid",
+       "sale",
+       3153,
+       30439667
+      ],
+      [
+       "pending",
+       "sale",
+       146,
+       1582488
+      ]
+     ],
+     "truncated": false,
+     "elapsed_ms": 0.0,
+     "evidence_id": "E8",
+     "snapshot": "current"
+    }
+   },
+   {
+    "tool": "query_snapshot",
+    "arguments": "{\"purpose\":\"Test unmatched customer coverage\",\"snapshot\":\"current\",\"sql\":\"SELECT COUNT(*) AS n, SUM(o.revenue_cents) AS s FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.status = 'paid' AND o.kind <> 'refund' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND c.customer_id IS NULL\"}",
+    "result": {
+     "sql": "SELECT COUNT(*) AS n, SUM(o.revenue_cents) AS s FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.status = 'paid' AND o.kind <> 'refund' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND c.customer_id IS NULL",
+     "columns": [
+      "n",
+      "s"
+     ],
+     "rows": [
+      [
+       131,
+       1155491
+      ]
+     ],
+     "truncated": false,
+     "elapsed_ms": 0.0,
+     "evidence_id": "E9",
+     "snapshot": "current"
+    }
+   },
+   {
+    "tool": "verify_correction",
+    "arguments": "{\"purpose\":\"Verify corrected November range excludes Dec1\",\"sql\":\"SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'\"}",
+    "result": {
+     "verified": true,
+     "evidence_id": "E10",
+     "expected_revenue_cents": 30439667,
+     "actual_revenue_cents": 30439667,
+     "missing_row_count": 0,
+     "unexpected_row_count": 0,
+     "missing_rows": [],
+     "unexpected_rows": [],
+     "reason": "Complete order/value multiset matches the metric contract."
+    }
+   }
+  ],
+  "usage": {
+   "input_tokens": 12244,
+   "output_tokens": 5410,
+   "model_requests": 3,
+   "tool_calls": 6,
+   "review_requests": 1
+  },
+  "events": [
+   {
+    "type": "start",
+    "t": 0.53,
+    "model": "muse-spark-1.3",
+    "replay": [
+     {
+      "sql_version": "previous",
+      "snapshot": "previous",
+      "revenue_cents": 18931683,
+      "row_count": 1995,
+      "evidence_id": "E1"
+     },
+     {
+      "sql_version": "previous",
+      "snapshot": "current",
+      "revenue_cents": 30439667,
+      "row_count": 3153,
+      "evidence_id": "E2"
+     },
+     {
+      "sql_version": "current",
+      "snapshot": "previous",
+      "revenue_cents": 18931683,
+      "row_count": 1995,
+      "evidence_id": "E3"
+     },
+     {
+      "sql_version": "current",
+      "snapshot": "current",
+      "revenue_cents": 31193815,
+      "row_count": 3238,
+      "evidence_id": "E4"
+     }
+    ],
+    "reconciliation": {
+     "previous_expected_cents": 18931683,
+     "current_expected_cents": 30439667,
+     "underlying_change_cents": 11507984,
+     "previous_error_cents": 0,
+     "current_error_cents": 754148,
+     "current_evidence_id": "E4",
+     "affected_order_count": 85
+    }
+   },
+   {
+    "type": "thinking",
+    "t": 20.39,
+    "text": "Forming hypotheses and designing parallel diagnostic queries for join cardinality, unmatched rows, date, status, and refund filters without re-running replay."
+   },
+   {
+    "type": "thinking",
+    "t": 20.39,
+    "text": "Identifying an inclusive date bound as the contract violation and preparing corrected SQL with verification."
+   },
+   {
+    "type": "thinking",
+    "t": 20.39,
+    "text": "Running targeted diagnostics to isolate the Dec 1 boundary breach and late-November genuine growth."
+   },
+   {
+    "type": "thinking",
+    "t": 20.39,
+    "text": "Designing parallel SQL checks to validate Dec 1 inclusion and unmatched customer coverage."
+   },
+   {
+    "type": "thinking",
+    "t": 20.39,
+    "text": "Running parallel diagnostics and preparing a contract-aligned correction for verification."
+   },
+   {
+    "type": "tool_call",
+    "t": 20.39,
+    "tool": "query_snapshot",
+    "purpose": "Test Dec1 out-of-range inclusion",
+    "snapshot": "current",
+    "sql": "SELECT COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE status = 'paid' AND kind <> 'refund' AND order_date = '2026-12-01'",
+    "question": null,
+    "call_id": "call_01a1a4c00ea67436839e9e90ad135dfe"
+   },
+   {
+    "type": "tool_result",
+    "t": 20.39,
+    "tool": "query_snapshot",
+    "call_id": "call_01a1a4c00ea67436839e9e90ad135dfe",
+    "result": {
+     "sql": "SELECT COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE status = 'paid' AND kind <> 'refund' AND order_date = '2026-12-01'",
+     "columns": [
+      "n",
+      "s"
+     ],
+     "rows": [
+      [
+       85,
+       754148
+      ]
+     ],
+     "truncated": false,
+     "evidence_id": "E5",
+     "snapshot": "current"
+    }
+   },
+   {
+    "type": "tool_call",
+    "t": 20.39,
+    "tool": "query_snapshot",
+    "purpose": "Quantify late-November genuine growth",
+    "snapshot": "current",
+    "sql": "SELECT COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE status = 'paid' AND kind <> 'refund' AND order_date >= '2026-11-25' AND order_date < '2026-12-01'",
+    "question": null,
+    "call_id": "call_01a1a4c0108d70ddb6e821db5ebb90a9"
+   },
+   {
+    "type": "tool_result",
+    "t": 20.41,
+    "tool": "query_snapshot",
+    "call_id": "call_01a1a4c0108d70ddb6e821db5ebb90a9",
+    "result": {
+     "sql": "SELECT COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE status = 'paid' AND kind <> 'refund' AND order_date >= '2026-11-25' AND order_date < '2026-12-01'",
+     "columns": [
+      "n",
+      "s"
+     ],
+     "rows": [
+      [
+       1077,
+       10676098
+      ]
+     ],
+     "truncated": false,
+     "evidence_id": "E6",
+     "snapshot": "current"
+    }
+   },
+   {
+    "type": "tool_call",
+    "t": 20.41,
+    "tool": "query_snapshot",
+    "purpose": "Confirm previous had no Dec1 rows",
+    "snapshot": "previous",
+    "sql": "SELECT COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE status = 'paid' AND kind <> 'refund' AND order_date >= '2026-12-01'",
+    "question": null,
+    "call_id": "call_01a1a4c0129b7554b2557c5efaba01ef"
+   },
+   {
+    "type": "tool_result",
+    "t": 20.41,
+    "tool": "query_snapshot",
+    "call_id": "call_01a1a4c0129b7554b2557c5efaba01ef",
+    "result": {
+     "sql": "SELECT COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE status = 'paid' AND kind <> 'refund' AND order_date >= '2026-12-01'",
+     "columns": [
+      "n",
+      "s"
+     ],
+     "rows": [
+      [
+       0,
+       null
+      ]
+     ],
+     "truncated": false,
+     "evidence_id": "E7",
+     "snapshot": "previous"
+    }
+   },
+   {
+    "type": "tool_call",
+    "t": 20.41,
+    "tool": "query_snapshot",
+    "purpose": "Check status refund filter effects",
+    "snapshot": "current",
+    "sql": "SELECT status, kind, COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY status, kind ORDER BY status, kind",
+    "question": null,
+    "call_id": "call_01a1a4c0148b7190b283e1b94c04a153"
+   },
+   {
+    "type": "tool_result",
+    "t": 20.41,
+    "tool": "query_snapshot",
+    "call_id": "call_01a1a4c0148b7190b283e1b94c04a153",
+    "result": {
+     "sql": "SELECT status, kind, COUNT(*) AS n, SUM(revenue_cents) AS s FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY status, kind ORDER BY status, kind",
+     "columns": [
+      "status",
+      "kind",
+      "n",
+      "s"
+     ],
+     "rows": [
+      [
+       "cancelled",
+       "sale",
+       162,
+       1797428
+      ],
+      [
+       "paid",
+       "refund",
+       104,
+       -851190
+      ],
+      [
+       "paid",
+       "sale",
+       3153,
+       30439667
+      ],
+      [
+       "pending",
+       "sale",
+       146,
+       1582488
+      ]
+     ],
+     "truncated": false,
+     "evidence_id": "E8",
+     "snapshot": "current"
+    }
+   },
+   {
+    "type": "tool_call",
+    "t": 20.41,
+    "tool": "query_snapshot",
+    "purpose": "Test unmatched customer coverage",
+    "snapshot": "current",
+    "sql": "SELECT COUNT(*) AS n, SUM(o.revenue_cents) AS s FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.status = 'paid' AND o.kind <> 'refund' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND c.customer_id IS NULL",
+    "question": null,
+    "call_id": "call_01a1a4c0168a74c78143e695db1c5b81"
+   },
+   {
+    "type": "tool_result",
+    "t": 20.41,
+    "tool": "query_snapshot",
+    "call_id": "call_01a1a4c0168a74c78143e695db1c5b81",
+    "result": {
+     "sql": "SELECT COUNT(*) AS n, SUM(o.revenue_cents) AS s FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.status = 'paid' AND o.kind <> 'refund' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND c.customer_id IS NULL",
+     "columns": [
+      "n",
+      "s"
+     ],
+     "rows": [
+      [
+       131,
+       1155491
+      ]
+     ],
+     "truncated": false,
+     "evidence_id": "E9",
+     "snapshot": "current"
+    }
+   },
+   {
+    "type": "thinking",
+    "t": 29.53,
+    "text": "Analyzing revenue discrepancy by comparing SQL snapshots and ruling out refund policy as the cause."
+   },
+   {
+    "type": "tool_call",
+    "t": 29.53,
+    "tool": "verify_correction",
+    "purpose": "Verify corrected November range excludes Dec1",
+    "snapshot": null,
+    "sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
+    "question": null,
+    "call_id": "call_01a1a4c035de76f99c82022ad75eff1c"
+   },
+   {
+    "type": "tool_result",
+    "t": 29.55,
+    "tool": "verify_correction",
+    "call_id": "call_01a1a4c035de76f99c82022ad75eff1c",
+    "result": {
+     "verified": true,
+     "evidence_id": "E10",
+     "expected_revenue_cents": 30439667,
+     "actual_revenue_cents": 30439667,
+     "missing_row_count": 0,
+     "unexpected_row_count": 0,
+     "missing_rows": [],
+     "unexpected_rows": [],
+     "reason": "Complete order/value multiset matches the metric contract."
+    }
+   },
+   {
+    "type": "thinking",
+    "t": 38.31,
+    "text": "Analyzing variance evidence to separate a calculation defect from genuine data movement for the metric contract."
+   },
+   {
+    "type": "thinking",
+    "t": 38.31,
+    "text": "Adjusting the date bound to enforce end_exclusive and listing the relied-on evidence IDs."
+   },
+   {
+    "type": "diagnosis",
+    "t": 38.31,
+    "classification": "mixed_change",
+    "summary": "Of the $122,621 increase from $189,317 to $311,938, $115,080 is genuine late-November paid sales (3,153 vs 1,995 orders) and $7,541 (85 orders dated 2026-12-01) is a defect from changing the end bound to inclusive.",
+    "root_cause": "Current SQL uses order_date <= '2026-12-01' which includes December 1, violating the contract end_exclusive of 2026-12-01.",
+    "correction_sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'"
+   },
+   {
+    "type": "verified",
+    "t": 38.33,
+    "verified": true,
+    "reason": "Complete order/value multiset matches the metric contract.",
+    "evidence_id": "E11"
+   },
+   {
+    "type": "review_start",
+    "t": 38.33,
+    "model": "muse-wonder-1.0"
+   },
+   {
+    "type": "review",
+    "t": 46.64,
+    "verdict": "supported",
+    "concerns": [],
+    "brief": "Paid November revenue genuinely rose by $115,079.84 to $304,396.67, not the reported $311,938.15. Remove the excess $7,539.48? No wait \u2014 remove the excess $7,541.48 from 85 December 1 orders wrongly included by the inclusive end date, and use the corrected `< '2026-12-01'` query for reporting.",
+    "model": "muse-wonder-1.0"
+   },
+   {
+    "type": "done",
+    "t": 46.64,
+    "classification": "mixed_change"
+   }
+  ],
+  "review": {
+   "model": "muse-wonder-1.0",
+   "verdict": "supported",
+   "concerns": [],
+   "stakeholder_brief": "Paid November revenue genuinely rose by $115,079.84 to $304,396.67, not the reported $311,938.15. Remove the excess $7,539.48? No wait \u2014 remove the excess $7,541.48 from 85 December 1 orders wrongly included by the inclusive end date, and use the corrected `< '2026-12-01'` query for reporting.",
+   "usage": {
+    "input_tokens": 1763,
+    "output_tokens": 862
+   }
+  },
+  "review_history": [
+   {
+    "model": "muse-wonder-1.0",
+    "verdict": "supported",
+    "concerns": [],
+    "stakeholder_brief": "Paid November revenue genuinely rose by $115,079.84 to $304,396.67, not the reported $311,938.15. Remove the excess $7,539.48? No wait \u2014 remove the excess $7,541.48 from 85 December 1 orders wrongly included by the inclusive end date, and use the corrected `< '2026-12-01'` query for reporting.",
+    "usage": {
+     "input_tokens": 1763,
+     "output_tokens": 862
+    }
+   }
+  ],
+  "clarified": false,
+  "elapsed_seconds": 46.641,
+  "limitations": "Model interpretation; execution evidence and independent repair checks do not verify every prose claim. Local prototype.",
+  "report_version": 1,
+  "generated_at": "2026-11-04T04:10:41.532150+00:00",
+  "input_sha256": "25b758734ffc258884053c51deb75f7786e1b7a12d6601cfcd3548757b9af4f2",
+  "metric_contract": {
+   "name": "Paid November revenue",
+   "grain": "one row per order_id",
+   "unit": "integer USD cents",
+   "start": "2026-11-01",
+   "end_exclusive": "2026-12-01",
+   "status": "paid",
+   "refund_policy": "exclude",
+   "customer_coverage": "all orders, including unmatched customers"
+  },
+  "sql_engine": "SQLite",
+  "application_version": "0.3.0",
+  "source_sha256": "928e5dacb796e9c1013894649463658e621456cd6c333af8f997f36d1bb71551",
+  "runtime": {
+   "python": "3.11.5",
+   "sqlite": "3.41.2"
+  },
+  "validation_scope": "Complete order/value multiset under the supplied metric contract.",
+  "diagnosis_source": "Meta model interpretation"
+ }
+}

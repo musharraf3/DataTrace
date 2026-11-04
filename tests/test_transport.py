@@ -40,7 +40,7 @@ def test_context_size_is_rejected_before_any_network_call(monkeypatch):
     monkeypatch.setenv("MODEL_API_KEY", "test-placeholder")
     monkeypatch.setattr("urllib.request.build_opener", lambda *args: pytest.fail("Must reject before network"))
     with pytest.raises(MetaAPIError, match="too large"):
-        MetaClient().complete(inputs="x" * 2500001)
+        MetaClient().complete(inputs="x" * 12000001)
 
 
 def test_model_business_claim_cannot_override_a_failed_contract_check():
@@ -64,3 +64,34 @@ def test_baseline_has_the_same_missing_definition_guard():
 def test_malformed_provider_output_never_crashes_with_type_errors(bad_response):
     with pytest.raises(MetaAPIError):
         investigate_meta(make_case(), client=FakeMeta([bad_response]))
+
+
+def test_transient_network_errors_are_retried_then_succeed(monkeypatch):
+    import urllib.error
+    monkeypatch.setenv("MODEL_API_KEY", "test-placeholder")
+    monkeypatch.setattr("time.sleep", lambda seconds: None)
+    calls = []
+    class Opener:
+        def open(self, request, timeout):
+            calls.append(1)
+            if len(calls) < 3:
+                raise urllib.error.URLError("temporary")
+            return io.BytesIO(json.dumps(response(final=conclusion(evidence_ids=[]))).encode())
+    monkeypatch.setattr("urllib.request.build_opener", lambda *args: Opener())
+    MetaClient().complete(inputs="test", tools_enabled=False)
+    assert len(calls) == 3
+
+
+def test_provider_error_detail_is_reported_without_retrying_client_errors(monkeypatch):
+    import urllib.error
+    monkeypatch.setenv("MODEL_API_KEY", "test-placeholder")
+    calls = []
+    class Opener:
+        def open(self, request, timeout):
+            calls.append(1)
+            body = io.BytesIO(b'{"error":{"code":"context_length_exceeded","message":"too many tokens"}}')
+            raise urllib.error.HTTPError(request.full_url, 400, "Bad Request", {}, body)
+    monkeypatch.setattr("urllib.request.build_opener", lambda *args: Opener())
+    with pytest.raises(MetaAPIError, match="context_length_exceeded"):
+        MetaClient().complete(inputs="test")
+    assert len(calls) == 1

@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 430" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3656ae"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="430" rx="18" fill="#ffffff"/>
+  <text x="30" y="40" font-size="20" font-weight="700" fill="#14213b">DataTrace: evidence before explanations</text>
+  <text x="30" y="62" font-size="13" fill="#667085">Four Meta model roles around a sandboxed SQL engine and a verifier a model can't fool</text>
+
+  <!-- intake -->
+  <rect x="30" y="95" width="190" height="62" rx="10" fill="#eef2ff" stroke="#3656ae"/>
+  <text x="125" y="120" font-size="13" text-anchor="middle" font-weight="700" fill="#14213b">Voice note</text>
+  <text x="125" y="140" font-size="11" text-anchor="middle" fill="#3656ae">muse-voice-transcribe-1.0</text>
+  <rect x="30" y="175" width="190" height="62" rx="10" fill="#eef2ff" stroke="#3656ae"/>
+  <text x="125" y="200" font-size="13" text-anchor="middle" font-weight="700" fill="#14213b">Dashboard screenshot</text>
+  <text x="125" y="220" font-size="11" text-anchor="middle" fill="#3656ae">muse-spark-1.3 vision → contract</text>
+
+  <!-- agent -->
+  <rect x="290" y="120" width="230" height="96" rx="12" fill="#dbe4ff" stroke="#3656ae" stroke-width="2"/>
+  <text x="405" y="150" font-size="15" text-anchor="middle" font-weight="700" fill="#14213b">Investigator agent</text>
+  <text x="405" y="170" font-size="12" text-anchor="middle" fill="#3656ae">muse-spark-1.3</text>
+  <text x="405" y="192" font-size="11" text-anchor="middle" fill="#253858">hypothesis → query → revise</text>
+
+  <!-- sandbox + verifier -->
+  <rect x="600" y="85" width="190" height="70" rx="10" fill="#e6f4f1" stroke="#0f8179"/>
+  <text x="695" y="112" font-size="13" text-anchor="middle" font-weight="700" fill="#14213b">Sandboxed SQLite</text>
+  <text x="695" y="132" font-size="11" text-anchor="middle" fill="#0f8179">read-only · bounded · local</text>
+  <rect x="600" y="180" width="190" height="70" rx="10" fill="#e6f4f1" stroke="#0f8179"/>
+  <text x="695" y="207" font-size="13" text-anchor="middle" font-weight="700" fill="#14213b">Per-order verifier</text>
+  <text x="695" y="227" font-size="11" text-anchor="middle" fill="#0f8179">deterministic Python, no AI</text>
+
+  <!-- analyst -->
+  <rect x="290" y="290" width="230" height="62" rx="10" fill="#fff4e5" stroke="#c05e29"/>
+  <text x="405" y="316" font-size="13" text-anchor="middle" font-weight="700" fill="#14213b">Analyst</text>
+  <text x="405" y="336" font-size="11" text-anchor="middle" fill="#c05e29">answers clarifying questions</text>
+
+  <!-- reviewer -->
+  <rect x="600" y="290" width="190" height="62" rx="10" fill="#eef2ff" stroke="#3656ae"/>
+  <text x="695" y="316" font-size="13" text-anchor="middle" font-weight="700" fill="#14213b">Independent reviewer</text>
+  <text x="695" y="336" font-size="11" text-anchor="middle" fill="#3656ae">muse-wonder-1.0</text>
+
+  <!-- output -->
+  <rect x="830" y="160" width="145" height="110" rx="12" fill="#14213b"/>
+  <text x="902" y="190" font-size="13" text-anchor="middle" font-weight="700" fill="#ffffff">Verdict</text>
+  <text x="902" y="210" font-size="11" text-anchor="middle" fill="#c9dbff">revenue bridge</text>
+  <text x="902" y="228" font-size="11" text-anchor="middle" fill="#c9dbff">verified SQL fix</text>
+  <text x="902" y="246" font-size="11" text-anchor="middle" fill="#c9dbff">CFO brief</text>
+
+  <!-- arrows -->
+  <path d="M220,126 L288,150" stroke="#3656ae" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+  <path d="M220,206 L288,186" stroke="#3656ae" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+  <path d="M520,145 L598,120" stroke="#3656ae" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+  <text x="526" y="124" font-size="9" fill="#667085">query_snapshot</text>
+  <path d="M520,192 L598,214" stroke="#3656ae" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+  <text x="522" y="230" font-size="9" fill="#667085">verify_correction</text>
+  <path d="M380,216 L380,288" stroke="#c05e29" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+  <path d="M430,288 L430,218" stroke="#c05e29" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+  <text x="438" y="262" font-size="10" fill="#c05e29">request_clarification</text>
+  <path d="M510,216 L612,288" stroke="#3656ae" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+  <path d="M600,340 L522,215" stroke="#3656ae" stroke-width="1.2" stroke-dasharray="5,4" fill="none" marker-end="url(#a)"/>
+  <text x="540" y="372" font-size="10" fill="#667085">challenge → one revision</text>
+  <path d="M790,315 L860,272" stroke="#3656ae" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+  <path d="M790,215 L828,215" stroke="#0f8179" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+
+  <text x="30" y="405" font-size="11" fill="#667085">The agent never receives raw rows: only schema, row counts and its own capped query results. A fix is accepted only when the complete per-order multiset matches the metric contract.</text>
+</svg>
