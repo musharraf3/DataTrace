@@ -6,7 +6,9 @@ def test_offline_ui_displays_evidence_after_run():
     assert not app.exception
     app.button[0].click().run()
     assert not app.exception
-    assert any("Calculation Defect" in element.value for element in app.subheader)
+    assert any("Mixed Change" in element.value for element in app.subheader)
+    assert any("$1,300.00" in element.value for element in app.subheader)
+    assert any("Affected orders (1)" in element.value for element in app.subheader)
     assert any("matches the metric contract" in element.value for element in app.success)
     assert len(app.metric) == 3
 
@@ -42,7 +44,7 @@ def test_manual_verification_rejects_equal_total_wrong_order():
     app = AppTest.from_file("app.py", default_timeout=20).run()
     app.button[0].click().run()
     next(widget for widget in app.text_area if widget.label == "Candidate SQL to verify").input(
-        "SELECT 1 AS order_id, 60000 AS revenue_cents").run()
+        "SELECT 1 AS order_id, 130000 AS revenue_cents").run()
     next(widget for widget in app.button if widget.label == "Verify candidate SQL").click().run()
     assert not app.exception
     assert any("violates" in element.value for element in app.warning)

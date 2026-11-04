@@ -8,6 +8,7 @@ import zipfile
 from dataclasses import replace
 from datetime import date
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
@@ -55,7 +56,7 @@ def _inputs(case, source):
             return None
         case = replace(case, snapshots=snapshots, expected_classification="unlabeled", family="custom")
     seed = fingerprint(case)[:12]
-    with st.expander("Metric definition and input SQL", expanded=True):
+    with st.expander("Metric definition and input SQL", expanded=source != "Bundled example"):
         description = st.text_area("Incident description", case.description, key=f"description-{seed}", max_chars=4000)
         a, b, c = st.columns(3)
         start = a.date_input("Period starts", date.fromisoformat(case.contract["start"]), key=f"start-{seed}")
@@ -84,38 +85,88 @@ def _inputs(case, source):
     return case
 
 
+def _revenue_bridge(previous_cents, current_cents, reconciliation):
+    steps = [("Prior reported", 0, previous_cents, "Reported total")]
+    prior_expected = reconciliation["previous_expected_cents"]
+    current_expected = reconciliation["current_expected_cents"]
+    if previous_cents != prior_expected:
+        steps.append(("Prior correction", previous_cents, prior_expected, "Reporting adjustment"))
+    steps.extend([
+        ("Underlying change", prior_expected, current_expected, "Contract-backed movement"),
+        ("Current error", current_expected, current_cents, "Reporting adjustment"),
+        ("Current reported", 0, current_cents, "Reported total"),
+    ])
+    frame = pd.DataFrame(steps, columns=["Step", "Start", "End", "Type"])
+    frame = frame.assign(Start=frame["Start"] / 100, End=frame["End"] / 100)
+    frame["Amount"] = frame["End"] - frame["Start"]
+    frame["Label"] = frame["Amount"].map(lambda amount: f"${amount:,.2f}")
+    axis = alt.X("Step:N", sort=frame["Step"].tolist(), title=None, axis=alt.Axis(labelAngle=0, labelLimit=140))
+    base = alt.Chart(frame).encode(x=axis)
+    bars = base.mark_bar(size=54, cornerRadius=3).encode(
+        y=alt.Y("Start:Q", title="Revenue (USD)", axis=alt.Axis(format="$,.0f")),
+        y2="End:Q",
+        color=alt.Color("Type:N", scale=alt.Scale(
+            domain=["Reported total", "Contract-backed movement", "Reporting adjustment"],
+            range=["#3656ae", "#0f8179", "#c05e29"]), legend=alt.Legend(title=None, orient="bottom")),
+        tooltip=["Step:N", alt.Tooltip("Amount:Q", format="$,.2f"),
+                 alt.Tooltip("Start:Q", format="$,.2f"), alt.Tooltip("End:Q", format="$,.2f")],
+    )
+    labels = base.mark_text(dy=-12, fontWeight="bold", color="#17264a").encode(y="End:Q", text="Label:N")
+    st.altair_chart((bars + labels).properties(height=235), use_container_width=True)
+
+
 def _result(case, report, context_key):
     replay = report["replay"]
-    old_total, current_total = replay[0]["revenue_cents"] / 100, replay[3]["revenue_cents"] / 100
+    previous_cents, current_cents = replay[0]["revenue_cents"], replay[3]["revenue_cents"]
+    reconciliation = report.get("reconciliation")
+    st.caption("INVESTIGATION BRIEF")
+    st.subheader(report["classification"].replace("_", " ").title())
     a, b, c = st.columns(3)
-    a.metric("Previous reported revenue", f"${old_total:,.2f}")
-    b.metric("Current reported revenue", f"${current_total:,.2f}", f"${current_total - old_total:+,.2f}")
-    c.metric("Executed evidence items", len(report["evidence"]))
+    a.metric("Reported revenue change", f"{(current_cents - previous_cents) / 100:+,.2f} USD")
+    if reconciliation is None:
+        b.metric("Underlying change", "Undetermined")
+        c.metric("Reporting error", "Undetermined")
+    else:
+        b.metric("Underlying change", f"{reconciliation['underlying_change_cents'] / 100:+,.2f} USD")
+        c.metric("Current reporting error", f"{reconciliation['current_error_cents'] / 100:+,.2f} USD")
     finding, evidence_tab, repair_tab, export_tab = st.tabs(["Finding", "Execution evidence", "Verify a correction", "Export report"])
     with finding:
-        st.subheader(report["classification"].replace("_", " ").title())
+        if reconciliation is None:
+            st.info("Set refund treatment in the metric definition and investigate again to reconcile the change.")
+        else:
+            st.subheader("How the reported number moved")
+            _revenue_bridge(previous_cents, current_cents, reconciliation)
+            st.caption("Underlying change uses the same order contract for both snapshots. Reporting error compares the query with the contract in each snapshot.")
         st.text(report["summary"])
         for issue in report.get("consistency_issues", []):
             st.warning(issue)
         st.caption(report["diagnosis_source"] + " · " + report["limitations"])
-        st.subheader("Separate code changes from data changes")
-        st.dataframe(replay, use_container_width=True, hide_index=True)
-        totals = {(row["sql_version"], row["snapshot"]): row["revenue_cents"] / 100 for row in replay}
-        old = totals[("previous", "previous")]
-        code = totals[("current", "previous")] - old
-        data = totals[("previous", "current")] - old
-        interaction = totals[("current", "current")] - old - code - data
-        st.bar_chart(pd.DataFrame({"USD": [code, data, interaction]}, index=["SQL effect on old data", "Data effect under old SQL", "Interaction"]))
-        st.caption("An exact arithmetic replay decomposition. Interaction captures combined effects; this is not proof of real-world causation.")
-        if report.get("correction_sql"):
-            st.subheader("Candidate correction")
-            st.code(report["correction_sql"], language="sql")
         validation = report.get("validation")
         if validation:
+            if validation["verified"] and report.get("correction_sql"):
+                st.subheader(f"Verified corrected revenue · ${validation['actual_revenue_cents'] / 100:,.2f}")
             (st.success if validation["verified"] else st.warning)(validation["reason"])
             with st.expander("Independent validation details"):
                 st.json(validation)
+        if reconciliation and reconciliation["affected_orders"]:
+            count = reconciliation["affected_order_count"]
+            st.subheader(f"Affected orders ({count:,})")
+            st.caption(f"Reported rows from {reconciliation['current_evidence_id']} compared with the order-level contract.")
+            orders = pd.DataFrame(reconciliation["affected_orders"])
+            for column in ["reported_cents", "expected_cents", "difference_cents"]:
+                orders[column] = orders[column].map(lambda value: f"${value / 100:,.2f}")
+            st.dataframe(orders.rename(columns={"order_id": "Order", "reported_cents": "Reported USD",
+                "expected_cents": "Expected USD", "difference_cents": "Difference USD",
+                "reported_rows": "Reported rows", "expected_rows": "Expected rows"}),
+                use_container_width=True, hide_index=True)
+            if count > len(orders):
+                st.caption("Showing the 100 largest differences by absolute value.")
+        if report.get("correction_sql"):
+            with st.expander("View candidate SQL"):
+                st.code(report["correction_sql"], language="sql")
     with evidence_tab:
+        st.subheader("Four-way SQL and snapshot replay")
+        st.dataframe(replay, use_container_width=True, hide_index=True)
         for item in report["evidence"]:
             with st.expander(f"{item['evidence_id']} · {item['snapshot']} snapshot · {item.get('total_row_count', len(item['rows']))} result rows"):
                 st.code(item["sql"], language="sql")
@@ -151,18 +202,28 @@ def main():
     st.set_page_config(page_title="DataTrace | Metric investigator", page_icon="🔎", layout="wide")
     st.markdown("""<style>
     .stApp {background:#f5f7fb;color:#18243a}
-    h1,h2,h3 {color:#14213b!important}
-    div[data-testid="stMetric"] {background:white;padding:20px;border:1px solid #e2e8f0;border-radius:12px}
+    .block-container {padding-top:2.25rem;max-width:1150px}
+    .trace-hero {padding:1.7rem 2rem;border-radius:20px;margin-bottom:1.25rem;
+      background:linear-gradient(120deg,#101f43,#233c79);color:#fff}
+    .trace-hero .trace-brand {font-size:.78rem;font-weight:750;letter-spacing:.16em;color:#b6d3ff}
+    .trace-hero h1 {color:#fff!important;margin:.4rem 0;font-size:clamp(1.55rem,4vw,2.7rem);line-height:1.12}
+    .trace-hero p {color:#e1ebfc;margin:.65rem 0 0;max-width:65ch}
+    h2,h3 {color:#14213b!important}
+    div[data-testid="stMetric"] {background:white;padding:16px;border:1px solid #dfe6f4;border-radius:12px}
+    div[data-testid="stMetricValue"] {font-size:clamp(1.15rem,2.5vw,1.8rem)}
+    div[data-testid="stText"] pre {white-space:pre-wrap;overflow-wrap:anywhere}
     .stButton>button[kind="primary"] {background:#214ed3;border:0;border-radius:8px}
     </style>""", unsafe_allow_html=True)
-    st.caption("DATATRACE / SQL METRIC INVESTIGATION")
-    st.title("Did the business change—or did the calculation break?")
-    st.write("Replay the SQL, inspect the evidence, and verify a correction before changing a metric.")
+    st.markdown("""<div class="trace-hero">
+    <div class="trace-brand">DATATRACE · REVENUE INVESTIGATIONS</div>
+    <h1>Find what moved your revenue.</h1>
+    <p>Separate genuine movement from reporting errors, see which orders were affected, and check the correction.</p>
+    </div>""", unsafe_allow_html=True)
     with st.sidebar:
         st.header("Investigation setup")
         names = ["Revenue incident 01", "Revenue incident 02", "Revenue incident 03", "Revenue incident 04", "Revenue incident 05"]
         scenario = st.selectbox("Synthetic incident", names)
-        variant = st.selectbox("Data variant", [1, 2, 3, 4])
+        variant = st.selectbox("Data variant", [1, 2, 3, 4], index=1)
         mode = st.radio("Investigation mode", ["Offline evidence walkthrough", "Live Meta investigator"])
         source = st.radio("Input source", ["Bundled example", "Incident JSON", "Four CSV snapshots"])
         st.caption("Offline mode runs deterministic contract checks. Live mode uses billable Meta inference. SQL runs locally in memory; no production connection is used.")

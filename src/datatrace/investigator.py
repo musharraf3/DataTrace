@@ -65,11 +65,7 @@ class Investigation:
             raise QueryRejected("Unknown snapshot.")
         if contract["refund_policy"] is None:
             return {"verified": False, "reason": "Clarify refund treatment before verifying a repair."}
-        expected = Counter()
-        for order_id, customer_id, date, status, kind, cents in self.incident.snapshots[snapshot]["orders"]:
-            if (status == contract["status"] and contract["start"] <= date < contract["end_exclusive"]
-                    and (kind != "refund" or contract["refund_policy"] == "include")):
-                expected[(order_id, cents)] += 1
+        expected = self._contract_rows(snapshot)
         try:
             result = self.runners[snapshot].query(sql, max_rows=10000)
         except QueryRejected as exc:
@@ -96,6 +92,45 @@ class Investigation:
                 "reason": "Complete order/value multiset matches the metric contract." if actual == expected
                           else "Candidate violates order coverage, uniqueness, or per-order revenue."}
 
+    def _contract_rows(self, snapshot):
+        contract = self.incident.contract
+        return Counter(
+            (order_id, cents)
+            for order_id, _, date, status, kind, cents in self.incident.snapshots[snapshot]["orders"]
+            if status == contract["status"] and contract["start"] <= date < contract["end_exclusive"]
+            and (kind != "refund" or contract["refund_policy"] == "include")
+        )
+
+    def reconcile(self, replay):
+        """Explain reported movement using the independent order-level contract."""
+        if self.incident.contract["refund_policy"] is None:
+            return None
+        previous, current = self._contract_rows("previous"), self._contract_rows("current")
+        actual = self.metric_rows[("current", "current")]
+        affected_ids = {order_id for order_id, _ in (actual - current) | (current - actual)}
+        affected = {order_id: {"order_id": order_id, "reported_cents": 0, "expected_cents": 0,
+                               "reported_rows": 0, "expected_rows": 0} for order_id in affected_ids}
+        for rows, label in [(actual, "reported"), (current, "expected")]:
+            for (order_id, cents), count in rows.items():
+                if order_id in affected:
+                    affected[order_id][f"{label}_cents"] += cents * count
+                    affected[order_id][f"{label}_rows"] += count
+        for order in affected.values():
+            order["difference_cents"] = order["reported_cents"] - order["expected_cents"]
+        ranked = sorted(affected.values(), key=lambda row: (-abs(row["difference_cents"]), row["order_id"]))
+        previous_expected = sum(cents * count for (_, cents), count in previous.items())
+        current_expected = sum(cents * count for (_, cents), count in current.items())
+        return {
+            "previous_expected_cents": previous_expected,
+            "current_expected_cents": current_expected,
+            "underlying_change_cents": current_expected - previous_expected,
+            "previous_error_cents": replay[0]["revenue_cents"] - previous_expected,
+            "current_error_cents": replay[3]["revenue_cents"] - current_expected,
+            "current_evidence_id": replay[3]["evidence_id"],
+            "affected_order_count": len(ranked),
+            "affected_orders": ranked[:100],
+        }
+
 
 def offline_walkthrough(incident):
     """Scripted diagnostics for offline use; this is not an LLM evaluation."""
@@ -105,6 +140,7 @@ def offline_walkthrough(incident):
     session = Investigation(incident)
     try:
         replay = session.replay()
+        reconciliation = session.reconcile(replay)
         session.query("current", "SELECT customer_id, COUNT(*) AS rows_per_customer FROM customers "
                       "GROUP BY customer_id HAVING COUNT(*) > 1")
         session.query("current", "SELECT o.order_id FROM orders o LEFT JOIN customers c "
@@ -115,10 +151,7 @@ def offline_walkthrough(incident):
             correction, validation = None, None
         else:
             validation = session.verify(incident.current_sql)
-            reference = canonical_sql(incident.contract)
-            previous_ref = session.runners["previous"].query(reference, max_rows=10000)
-            current_ref = session.runners["current"].query(reference, max_rows=10000)
-            data_changed = Counter(map(tuple, previous_ref["rows"])) != Counter(map(tuple, current_ref["rows"]))
+            data_changed = session._contract_rows("previous") != session._contract_rows("current")
             if not validation["verified"]:
                 classification = "mixed_change" if data_changed else "calculation_defect"
                 summary = "The current calculation violates the metric contract. Inspect the replay and per-order differences."
@@ -129,7 +162,7 @@ def offline_walkthrough(incident):
                 summary = "The current calculation matches the metric contract. Preserve the legitimate data-driven movement."
                 correction = None
         report = {"mode": "offline_scripted", "classification": classification, "summary": summary,
-                "replay": replay, "evidence": session.evidence, "correction_sql": correction,
+                "replay": replay, "reconciliation": reconciliation, "evidence": session.evidence, "correction_sql": correction,
                 "validation": validation, "usage": {},
                 "elapsed_seconds": round(time.monotonic() - started, 3),
                 "limitations": "Deterministic contract diagnostics; no AI or production accuracy claim."}

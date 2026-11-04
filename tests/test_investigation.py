@@ -17,6 +17,13 @@ def test_duplicate_join_is_exposed_and_repair_preserves_real_growth():
     assert report["replay"][3]["revenue_cents"] == 170000
     assert report["validation"]["verified"]
     assert report["validation"]["actual_revenue_cents"] == 130000
+    reconciliation = report["reconciliation"]
+    assert reconciliation["underlying_change_cents"] == 10000
+    assert reconciliation["current_error_cents"] == 40000
+    assert reconciliation["affected_order_count"] == 1
+    affected = reconciliation["affected_orders"][0]
+    assert affected["reported_rows"] == 2 and affected["expected_rows"] == 1
+    assert affected["difference_cents"] == 40000
 
 
 def test_genuine_growth_does_not_trigger_a_repair():
@@ -31,6 +38,7 @@ def test_ambiguous_definition_requires_clarification():
     assert report["classification"] == "insufficient_evidence"
     assert report["correction_sql"] is None
     assert "refund" in report["summary"].lower()
+    assert report["reconciliation"] is None
 
 
 def test_same_total_with_wrong_per_order_values_fails_verification():

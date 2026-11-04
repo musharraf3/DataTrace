@@ -55,9 +55,18 @@ def markdown_report(report):
              f"Generated: {report.get('generated_at', 'not recorded')}",
              f"Input SHA-256: {report.get('input_sha256', 'not recorded')}", "",
              "## Finding", "", report["classification"].replace("_", " ").title(), "",
-             report["summary"], "", "## SQL and data replay", "",
-             "| SQL version | Snapshot | Revenue (USD) | Rows | Evidence |",
-             "| --- | --- | ---: | ---: | --- |"]
+             report["summary"]]
+    reconciliation = report.get("reconciliation")
+    if reconciliation:
+        lines.extend(["", "## Revenue reconciliation", "",
+            f"- Underlying change: {reconciliation['underlying_change_cents'] / 100:+,.2f} USD",
+            f"- Prior reporting error: {reconciliation['previous_error_cents'] / 100:+,.2f} USD",
+            f"- Current reporting error: {reconciliation['current_error_cents'] / 100:+,.2f} USD",
+            f"- Affected orders: {reconciliation['affected_order_count']} in {reconciliation['current_evidence_id']}",
+        ])
+    lines.extend(["", "## SQL and data replay", "",
+                  "| SQL version | Snapshot | Revenue (USD) | Rows | Evidence |",
+                  "| --- | --- | ---: | ---: | --- |"])
     for row in report.get("replay", []):
         lines.append(f"| {row['sql_version']} | {row['snapshot']} | {row['revenue_cents']/100:,.2f} | "
                      f"{row['row_count']} | {row['evidence_id']} |")

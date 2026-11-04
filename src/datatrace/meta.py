@@ -143,7 +143,12 @@ def investigate_meta(incident, *, client=None, max_tool_calls=12):
     trace = []
     try:
         replay = session.replay()
+        reconciliation = session.reconcile(replay)
+        reconciliation_totals = None if reconciliation is None else {
+            key: value for key, value in reconciliation.items() if key != "affected_orders"
+        }
         inputs = json.dumps({**source_context(incident), "initial_replay": replay,
+                             "contract_reconciliation": reconciliation_totals,
                              "initial_evidence": session.evidence})
         previous_id = None
         for turn in range(max_tool_calls + 1):
@@ -185,7 +190,7 @@ def investigate_meta(incident, *, client=None, max_tool_calls=12):
                         "model_summary": model_summary, "consistency_issues": issues,
                         "classification": final["classification"], "summary": final["summary"],
                         "evidence_ids": refs, "correction_sql": correction, "validation": validation,
-                        "replay": replay, "evidence": session.evidence, "trace": trace, "usage": usage,
+                        "replay": replay, "reconciliation": reconciliation, "evidence": session.evidence, "trace": trace, "usage": usage,
                         "elapsed_seconds": round(time.monotonic() - started, 3),
                         "limitations": "Model interpretation; execution evidence and independent repair checks do not verify every prose claim. Local prototype."}
                 return enrich_report(report, incident)
