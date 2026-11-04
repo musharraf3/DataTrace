@@ -31,6 +31,7 @@ def _cost(run, mode):
 def main():
     table, chart, notes = [], [], []
     totals = {"meta": [0, 0], "baseline": [0, 0]}
+    per_split = {}
     for split, title in SPLITS:
         path = ROOT / "artifacts" / f"bench-{split}.json"
         if not path.exists():
@@ -58,15 +59,30 @@ def main():
             })
             chart.append({"Split": title.split(" (")[0], "System": "DataTrace agent" if mode == "meta" else "No-tools baseline",
                           "Correct": run["correct"] / max(n, 1)})
+            per_split.setdefault(split, {})[mode] = {"correct": run["correct"], "n": n, "tokens": tokens_in / max(n, 1),
+                                                     "usd": usd / max(n, 1), "errors": run["errors"]}
             errors = sorted({c.get("error_message", "")[:90] for c in run["cases"] if c.get("error")})
             if errors:
-                notes.append(f"{title}, {label}: {', '.join(errors)}")
+                reason = ", ".join(errors)
+                if split == "scale" and mode == "baseline":
+                    reason = ("HTTP 400 context_length_exceeded on every request: the raw rows are 2,064,623 tokens and "
+                              "the model's context window is 1,048,576 tokens (error body confirmed directly).")
+                elif "connectivity" in reason:
+                    reason += " (a transient network failure; automatic retries for network/429/5xx errors were added afterwards)"
+                notes.append(f"{title}, {label}: {reason}")
     agent, base = totals["meta"], totals["baseline"]
-    headline = (f"Across every run, the DataTrace agent produced the correct diagnosis in **{agent[0]}/{agent[1]}** cases "
-                f"versus **{base[0]}/{base[1]}** for the same Meta model without tools. ") if agent[1] else ""
-    headline += ("On small data the baseline can compete by reading every row; the agent reaches the same answers while "
-                 "sending a fraction of the tokens and never sending raw rows. At warehouse scale the raw rows no longer fit "
-                 "in the model's context, and only the tool-using agent can investigate.")
+    headline = (f"Across all runs the DataTrace agent produced the correct diagnosis in **{agent[0]}/{agent[1]}** cases, "
+                f"the same Meta model without tools in **{base[0]}/{base[1]}**. ") if agent[1] else ""
+    real = per_split.get("realistic", {})
+    if "meta" in real and "baseline" in real:
+        headline += (f"When the data fits in a prompt, both are accurate, but on realistic 4k-order incidents the agent used "
+                     f"**{real['baseline']['tokens'] / max(real['meta']['tokens'], 1):.0f}× fewer input tokens** and cost "
+                     f"**{real['baseline']['usd'] / max(real['meta']['usd'], 1e-9):.1f}× less**, without sending a single raw row. ")
+    scale = per_split.get("scale", {})
+    if "meta" in scale and "baseline" in scale:
+        headline += (f"At warehouse scale (~42k orders) the raw rows exceed the model's context window: the baseline could not run "
+                     f"(**{scale['baseline']['correct']}/{scale['baseline']['n']}**), while the agent solved "
+                     f"**{scale['meta']['correct']}/{scale['meta']['n']}**.")
     method = ("Synthetic, author-generated incidents with hidden labels; every case was run 3× (scale split 2×) at reasoning effort "
               "'medium'. Correctness is the final, guarded classification. 'Verified repair' means the independent per-order "
               "check passed. Costs use Meta list prices on 2026-11-03 and include the muse-wonder-1.0 reviewer for the agent. "
@@ -79,6 +95,17 @@ def main():
     lines += ["| " + " | ".join(str(v) for v in row.values()) + " |" for row in table]
     lines += ["", method, ""] + [f"- {n}" for n in notes]
     (ROOT / "results" / "BENCHMARK.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    keep = ["Split", "System", "Correct diagnosis", "Verified repair when needed", "Errors / could not run",
+            "Input tokens per case", "Est. cost per case"]
+    compact = ["| " + " | ".join(keep) + " |", "| " + " | ".join("---" for _ in keep) + " |"]
+    compact += ["| " + " | ".join(str(row[k]) for k in keep) + " |" for row in table]
+    readme = ROOT / "README.md"
+    text = readme.read_text(encoding="utf-8")
+    start, end = "<!-- BENCHMARK_START -->", "<!-- BENCHMARK_END -->"
+    if start in text and end in text:
+        before, rest = text.split(start, 1)
+        after = rest.split(end, 1)[1]
+        readme.write_text(before + start + "\n" + "\n".join(compact) + "\n" + end + after, encoding="utf-8")
     print(json.dumps(out, indent=2))
 
 

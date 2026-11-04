@@ -500,12 +500,17 @@ def _benchmark_tab():
     st.markdown(data.get("headline", ""))
     chart_rows = pd.DataFrame(data.get("chart", []))
     if not chart_rows.empty:
-        chart = alt.Chart(chart_rows).mark_bar(cornerRadius=3).encode(
+        chart_rows["Label"] = chart_rows["Correct"].map(lambda v: f"{v:.0%}" if v > 0 else "0% · could not run")
+        base = alt.Chart(chart_rows).encode(
             x=alt.X("System:N", title=None, axis=alt.Axis(labelAngle=0, labelLimit=200)),
-            y=alt.Y("Correct:Q", title="Correct diagnoses", axis=alt.Axis(format="%"), scale=alt.Scale(domain=[0, 1])),
+            y=alt.Y("Correct:Q", title="Correct diagnoses", axis=alt.Axis(format="%"), scale=alt.Scale(domain=[0, 1.1])))
+        bars = base.mark_bar(cornerRadius=3).encode(
             color=alt.Color("System:N", scale=alt.Scale(range=["#214ed3", "#98a2b3"]), legend=None),
-            column=alt.Column("Split:N", title=None, header=alt.Header(labelFontSize=13)),
-            tooltip=["Split", "System", alt.Tooltip("Correct:Q", format=".0%")]).properties(width=190, height=230)
+            tooltip=["Split", "System", alt.Tooltip("Correct:Q", format=".0%")])
+        text = base.mark_text(dy=-8, fontWeight="bold", color="#17264a").encode(text="Label:N")
+        chart = alt.layer(bars, text, data=chart_rows).properties(width=200, height=230).facet(
+            column=alt.Column("Split:N", title=None, sort=list(dict.fromkeys(chart_rows["Split"])),
+                              header=alt.Header(labelFontSize=13)))
         st.altair_chart(chart)
     st.dataframe(pd.DataFrame(data["table"]), hide_index=True, use_container_width=True)
     st.caption(data.get("method", ""))

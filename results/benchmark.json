@@ -1,0 +1,148 @@
+{
+  "headline": "Across all runs the DataTrace agent produced the correct diagnosis in **159/160** cases, the same Meta model without tools in **150/160**. When the data fits in a prompt, both are accurate, but on realistic 4k-order incidents the agent used **14\u00d7 fewer input tokens** and cost **4.3\u00d7 less**, without sending a single raw row. At warehouse scale (~42k orders) the raw rows exceed the model's context window: the baseline could not run (**0/10**), while the agent solved **10/10**.",
+  "table": [
+    {
+      "Split": "Development (20 mini cases)",
+      "System": "DataTrace agent (tools + verifier + reviewer)",
+      "Correct diagnosis": "59/60",
+      "Verified repair when needed": "36/36",
+      "Unneeded repairs": "0/24",
+      "Errors / could not run": "1/60",
+      "Asked for clarification": 12,
+      "Input tokens per case": "9,710",
+      "Est. cost per case": "$0.039",
+      "Median seconds": 35.578
+    },
+    {
+      "Split": "Development (20 mini cases)",
+      "System": "Same model, no tools, raw rows in prompt",
+      "Correct diagnosis": "60/60",
+      "Verified repair when needed": "36/36",
+      "Unneeded repairs": "0/24",
+      "Errors / could not run": "0/60",
+      "Asked for clarification": 0,
+      "Input tokens per case": "996",
+      "Est. cost per case": "$0.008",
+      "Median seconds": 10.359
+    },
+    {
+      "Split": "Stress (20 mini cases, new values)",
+      "System": "DataTrace agent (tools + verifier + reviewer)",
+      "Correct diagnosis": "60/60",
+      "Verified repair when needed": "36/36",
+      "Unneeded repairs": "0/24",
+      "Errors / could not run": "0/60",
+      "Asked for clarification": 12,
+      "Input tokens per case": "10,211",
+      "Est. cost per case": "$0.042",
+      "Median seconds": 37.125
+    },
+    {
+      "Split": "Stress (20 mini cases, new values)",
+      "System": "Same model, no tools, raw rows in prompt",
+      "Correct diagnosis": "60/60",
+      "Verified repair when needed": "36/36",
+      "Unneeded repairs": "0/24",
+      "Errors / could not run": "0/60",
+      "Asked for clarification": 0,
+      "Input tokens per case": "1,189",
+      "Est. cost per case": "$0.009",
+      "Median seconds": 12.031
+    },
+    {
+      "Split": "Realistic (10 cases, ~4k orders)",
+      "System": "DataTrace agent (tools + verifier + reviewer)",
+      "Correct diagnosis": "30/30",
+      "Verified repair when needed": "18/18",
+      "Unneeded repairs": "0/12",
+      "Errors / could not run": "0/30",
+      "Asked for clarification": 6,
+      "Input tokens per case": "14,180",
+      "Est. cost per case": "$0.061",
+      "Median seconds": 51.641
+    },
+    {
+      "Split": "Realistic (10 cases, ~4k orders)",
+      "System": "Same model, no tools, raw rows in prompt",
+      "Correct diagnosis": "30/30",
+      "Verified repair when needed": "18/18",
+      "Unneeded repairs": "0/12",
+      "Errors / could not run": "0/30",
+      "Asked for clarification": 0,
+      "Input tokens per case": "197,902",
+      "Est. cost per case": "$0.264",
+      "Median seconds": 30.875
+    },
+    {
+      "Split": "Warehouse scale (5 cases, ~42k orders)",
+      "System": "DataTrace agent (tools + verifier + reviewer)",
+      "Correct diagnosis": "10/10",
+      "Verified repair when needed": "6/6",
+      "Unneeded repairs": "0/4",
+      "Errors / could not run": "0/10",
+      "Asked for clarification": 2,
+      "Input tokens per case": "14,366",
+      "Est. cost per case": "$0.061",
+      "Median seconds": 61.406
+    },
+    {
+      "Split": "Warehouse scale (5 cases, ~42k orders)",
+      "System": "Same model, no tools, raw rows in prompt",
+      "Correct diagnosis": "0/10",
+      "Verified repair when needed": "0/6",
+      "Unneeded repairs": "0/4",
+      "Errors / could not run": "10/10",
+      "Asked for clarification": 0,
+      "Input tokens per case": "0",
+      "Est. cost per case": "$0.000",
+      "Median seconds": null
+    }
+  ],
+  "chart": [
+    {
+      "Split": "Development",
+      "System": "DataTrace agent",
+      "Correct": 0.9833333333333333
+    },
+    {
+      "Split": "Development",
+      "System": "No-tools baseline",
+      "Correct": 1.0
+    },
+    {
+      "Split": "Stress",
+      "System": "DataTrace agent",
+      "Correct": 1.0
+    },
+    {
+      "Split": "Stress",
+      "System": "No-tools baseline",
+      "Correct": 1.0
+    },
+    {
+      "Split": "Realistic",
+      "System": "DataTrace agent",
+      "Correct": 1.0
+    },
+    {
+      "Split": "Realistic",
+      "System": "No-tools baseline",
+      "Correct": 1.0
+    },
+    {
+      "Split": "Warehouse scale",
+      "System": "DataTrace agent",
+      "Correct": 1.0
+    },
+    {
+      "Split": "Warehouse scale",
+      "System": "No-tools baseline",
+      "Correct": 0.0
+    }
+  ],
+  "method": "Synthetic, author-generated incidents with hidden labels; every case was run 3\u00d7 (scale split 2\u00d7) at reasoning effort 'medium'. Correctness is the final, guarded classification. 'Verified repair' means the independent per-order check passed. Costs use Meta list prices on 2026-11-03 and include the muse-wonder-1.0 reviewer for the agent. Not a production benchmark. Raw per-case reports are produced by `python -m datatrace.evaluate --mode compare`.",
+  "notes": [
+    "Development (20 mini cases), DataTrace agent (tools + verifier + reviewer): Could not complete the Meta API request. Check connectivity and retry explicitly. (a transient network failure; automatic retries for network/429/5xx errors were added afterwards)",
+    "Warehouse scale (5 cases, ~42k orders), Same model, no tools, raw rows in prompt: HTTP 400 context_length_exceeded on every request: the raw rows are 2,064,623 tokens and the model's context window is 1,048,576 tokens (error body confirmed directly)."
+  ]
+}

@@ -23,7 +23,7 @@ When it proposes a fix, an independent deterministic checker verifies the comple
 
 In the flagship Black Friday incident (4,122 orders), DataTrace showed that of a +$129,045 jump, $115,080 was genuine growth and $13,966 was a CRM-migration join bug: $25,521 double-counted minus $11,555 dropped. It produced verified corrected SQL and a two-sentence CFO brief.
 
-Against the same Meta model given all the raw rows and no tools, the agent matched its accuracy on small data while using about 14× fewer input tokens. At warehouse scale (42k orders, 2.06M tokens of raw data) the no-tools approach could not run at all (context_length_exceeded), while the agent solved 10/10.
+Across 320 paid benchmark runs against the same Meta model given all the raw rows and no tools, the agent scored 159/160 versus 150/160. On data that fits in a prompt both were accurate, but on realistic incidents the agent used 14× fewer input tokens and cost 4.3× less. At warehouse scale (42k orders, 2.06M tokens of raw data) the no-tools approach could not run at all (context_length_exceeded), while the agent solved 10/10.
 
 ## Meta products used
 

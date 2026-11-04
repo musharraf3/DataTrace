@@ -10,7 +10,7 @@ Judges can always use **Recorded live run** mode with no key and no cost. A host
 4. Open **Advanced settings → Secrets** and paste the following. Never put the key in the repository.
 
    ```toml
-   MODEL_API_KEY = "your-meta-key"
+   MODEL_API_KEY = "<your-meta-key>"
    DATATRACE_PUBLIC_DEMO = "1"
    DATATRACE_DAILY_LIVE_LIMIT = "60"
    ```

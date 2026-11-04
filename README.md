@@ -26,14 +26,25 @@ Analysts spend hours answering "is this number right?" before every leadership r
 
 ## Benchmark: the agent vs. the same model without tools
 
-Every case was run 3× (warehouse-scale 2×). The baseline is the same `muse-spark-1.3`, with all raw rows in its prompt and no tools. Full table: [results/BENCHMARK.md](results/BENCHMARK.md).
+**320 paid runs.** Every case was run 3× (warehouse-scale 2×). The baseline is the same `muse-spark-1.3`, with all raw rows in its prompt and no tools. **Agent: 159/160 correct. Baseline: 150/160.** Full table, including latency: [results/BENCHMARK.md](results/BENCHMARK.md).
 
-<!-- BENCHMARK_TABLE -->
+<!-- BENCHMARK_START -->
+| Split | System | Correct diagnosis | Verified repair when needed | Errors / could not run | Input tokens per case | Est. cost per case |
+| --- | --- | --- | --- | --- | --- | --- |
+| Development (20 mini cases) | DataTrace agent (tools + verifier + reviewer) | 59/60 | 36/36 | 1/60 | 9,710 | $0.039 |
+| Development (20 mini cases) | Same model, no tools, raw rows in prompt | 60/60 | 36/36 | 0/60 | 996 | $0.008 |
+| Stress (20 mini cases, new values) | DataTrace agent (tools + verifier + reviewer) | 60/60 | 36/36 | 0/60 | 10,211 | $0.042 |
+| Stress (20 mini cases, new values) | Same model, no tools, raw rows in prompt | 60/60 | 36/36 | 0/60 | 1,189 | $0.009 |
+| Realistic (10 cases, ~4k orders) | DataTrace agent (tools + verifier + reviewer) | 30/30 | 18/18 | 0/30 | 14,180 | $0.061 |
+| Realistic (10 cases, ~4k orders) | Same model, no tools, raw rows in prompt | 30/30 | 18/18 | 0/30 | 197,902 | $0.264 |
+| Warehouse scale (5 cases, ~42k orders) | DataTrace agent (tools + verifier + reviewer) | 10/10 | 6/6 | 0/10 | 14,366 | $0.061 |
+| Warehouse scale (5 cases, ~42k orders) | Same model, no tools, raw rows in prompt | 0/10 | 0/6 | 10/10 | 0 | $0.000 |
+<!-- BENCHMARK_END -->
 
 The honest reading:
 
-- **On small data, both get the right answer.** A strong model can compute the answer from pasted rows. The agent matches it while reading only its own query results.
-- **On realistic data (~4k orders), both are correct, but the agent uses ~14× fewer input tokens** and never sends a raw row to the model.
+- **On small data, both get the right answer.** A strong model can compute the answer from a few pasted rows, and there the baseline is cheaper and faster. The agent's one miss was a transient network error, since fixed with retries.
+- **On realistic data (~4k orders), both are correct, but the agent uses 14× fewer input tokens and costs 4.3× less** ($0.061 vs. $0.264 per case), and it never sends a raw row to the model. It is slower (median 52s vs. 31s) because it runs real queries and a second-model review.
 - **At warehouse scale (~42k orders), the baseline cannot run at all.** The rows are 2,064,623 tokens against a 1,048,576-token context window (`context_length_exceeded`). The agent still solves 10/10, because it only reads what it queries.
 - 0 unneeded repairs and 100% verified repairs for the agent. A model cannot self-certify a fix: the per-order checker decides.
 
@@ -70,7 +81,7 @@ Command line:
 .\.venv\Scripts\python.exe -m datatrace verify incident.json correction.sql
 ```
 
-Reproduce the benchmark (billable, about $25 at list prices):
+Reproduce the benchmark (billable; the full 320-run benchmark cost about $16 at list prices):
 
 ```powershell
 .\.venv\Scripts\python.exe -m datatrace.evaluate --mode compare --allow-paid --review --split realistic --repeat 3 --workers 8 --output artifacts/bench-realistic.json
