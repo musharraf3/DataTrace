@@ -69,13 +69,37 @@ def test_missing_contract_blocks_repair_even_when_model_proposes_one():
     assert not report["validation"]["verified"]
 
 
-def test_tool_budget_cannot_be_bypassed_with_multiple_calls():
-    calls = [{"type": "function_call", "name": "query_snapshot", "call_id": f"c{i}",
-              "arguments": json.dumps({"snapshot": "current", "sql": "SELECT 1"})} for i in range(3)]
-    fake = FakeMeta([response(calls=calls)])
+def _calls(n, prefix="c"):
+    return [{"type": "function_call", "name": "query_snapshot", "call_id": f"{prefix}{i}",
+             "arguments": json.dumps({"snapshot": "current", "sql": f"SELECT {i}"})} for i in range(n)]
+
+
+def test_tool_budget_refuses_extra_calls_then_forces_a_tool_free_final_turn():
+    fake = FakeMeta([response(calls=_calls(3)), response(final=conclusion(evidence_ids=["E5"]))])
+    report = investigate_meta(make_case(), client=fake, max_tool_calls=2)
+    assert report["usage"]["tool_calls"] == 2
+    assert "budget exhausted" in report["trace"][2]["result"]["error"]
+    assert fake.requests[1]["tools_enabled"] is False and "budget is exhausted" in fake.requests[1]["instructions"]
+    assert json.loads(fake.requests[1]["inputs"][0]["output"])["tool_budget_remaining"] == 1
+
+
+def test_tool_budget_cannot_be_bypassed_after_the_final_turn():
+    fake = FakeMeta([response(calls=_calls(3)), response(calls=_calls(1, "d"), response_id="r2")])
     with pytest.raises(MetaAPIError, match="budget"):
         investigate_meta(make_case(), client=fake, max_tool_calls=2)
-    assert len(fake.requests) == 1
+    assert len(fake.requests) == 2
+
+
+def test_identical_queries_reuse_the_same_evidence():
+    from datatrace.investigator import Investigation
+    session = Investigation(make_case())
+    try:
+        first = session.query("current", "SELECT COUNT(*) FROM orders")
+        again = session.query("current", "SELECT  COUNT(*)\n FROM orders")
+        assert again["evidence_id"] == first["evidence_id"] and again["cached"]
+        assert len(session.evidence) == 1
+    finally:
+        session.close()
 
 
 @pytest.mark.parametrize("final", [None, [], conclusion(classification="made_up"), conclusion(summary=""),

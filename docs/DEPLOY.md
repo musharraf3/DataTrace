@@ -26,7 +26,7 @@ Judges can always use **Recorded live run** mode with no key and no cost. A host
 | Uploads in public mode | Uploaded data can only run offline; live mode uses the bundled synthetic incidents |
 | Host lock | The key is sent only to `https://api.meta.ai/v1`; redirects are refused |
 | Never displayed | The UI only says "Meta key configured"; the key is not logged or exported |
-| Token ceiling | Each investigation stops after 250k tokens; 12 tool calls maximum |
+| Token ceiling | Each investigation stops after 250k tokens; 16 tool calls maximum |
 
 Also set a **Spend notification** in the Meta API dashboard (Billing). It is a notification, not a hard cap, so keep the daily limit above as the real brake.
 

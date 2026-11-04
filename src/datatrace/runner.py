@@ -13,7 +13,11 @@ class QueryRejected(ValueError):
 
 
 class QueryRunner:
-    FUNCTIONS = {"count", "sum", "min", "max", "avg", "coalesce", "ifnull", "nullif", "abs", "round"}
+    # Pure, deterministic aggregate/scalar functions only. String results are capped by
+    # SQLITE_LIMIT_LENGTH, so group_concat/replace cannot exhaust memory.
+    FUNCTIONS = {"count", "sum", "total", "min", "max", "avg", "coalesce", "ifnull", "nullif", "iif",
+                 "abs", "round", "substr", "substring", "lower", "upper", "length", "trim", "ltrim", "rtrim",
+                 "instr", "replace", "date", "strftime", "julianday", "group_concat"}
 
     def __init__(self, snapshot, *, timeout=5.0, max_steps=60000000, max_rows=100):
         from .inputs import validate_snapshot

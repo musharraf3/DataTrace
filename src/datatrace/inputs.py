@@ -63,6 +63,33 @@ def _integer(value, label, *, positive=False):
     return value
 
 
+def _validate_row(name, columns, row, seen):
+    if isinstance(row, dict):
+        if set(row) != set(columns):
+            raise InputError(f"{name} columns must be {', '.join(columns)}.")
+        row = [row[column] for column in columns]
+    if not isinstance(row, (list, tuple)) or len(row) != len(columns):
+        raise InputError(f"Invalid row shape for {name}.")
+    if name == "orders":
+        oid, cid, day, status, kind, cents = row
+        _integer(oid, "order_id", positive=True)
+        _integer(cid, "customer_id", positive=True)
+        _integer(cents, "revenue_cents")
+        _date(day, "order_date")
+        if oid in seen:
+            raise InputError(f"order_id {oid} appears more than once; source orders must be unique.")
+        seen.add(oid)
+        if not isinstance(status, str) or status not in {"paid", "pending", "cancelled"}:
+            raise InputError(f"status must be paid, pending, or cancelled (got {str(status)[:20]!r}).")
+        if not isinstance(kind, str) or kind not in {"sale", "refund"}:
+            raise InputError(f"kind must be sale or refund (got {str(kind)[:20]!r}).")
+    else:
+        _integer(row[0], "customer_id", positive=True)
+        if not isinstance(row[1], str) or len(row[1]) > 80:
+            raise InputError("Region must be text of at most 80 characters.")
+    return tuple(row)
+
+
 def validate_snapshot(snapshot):
     if not isinstance(snapshot, dict) or set(snapshot) != {"orders", "customers"}:
         raise InputError("Each snapshot must contain orders and customers tables.")
@@ -72,30 +99,11 @@ def validate_snapshot(snapshot):
         if not isinstance(rows, list) or len(rows) > MAX_ROWS:
             raise InputError(f"{name} must be a list with at most {MAX_ROWS} rows.")
         output, seen = [], set()
-        for row in rows:
-            if isinstance(row, dict):
-                if set(row) != set(columns):
-                    raise InputError(f"{name} columns must be {', '.join(columns)}.")
-                row = [row[column] for column in columns]
-            if not isinstance(row, (list, tuple)) or len(row) != len(columns):
-                raise InputError(f"Invalid row shape for {name}.")
-            if name == "orders":
-                oid, cid, day, status, kind, cents = row
-                _integer(oid, "order_id", positive=True)
-                _integer(cid, "customer_id", positive=True)
-                _integer(cents, "revenue_cents")
-                _date(day, "order_date")
-                if oid in seen:
-                    raise InputError("Source orders must have unique order_id values.")
-                seen.add(oid)
-                if (not isinstance(status, str) or status not in {"paid", "pending", "cancelled"}
-                        or not isinstance(kind, str) or kind not in {"sale", "refund"}):
-                    raise InputError("Invalid order status or kind.")
-            else:
-                _integer(row[0], "customer_id", positive=True)
-                if not isinstance(row[1], str) or len(row[1]) > 80:
-                    raise InputError("Region must be text of at most 80 characters.")
-            output.append(tuple(row))
+        for index, row in enumerate(rows, start=1):
+            try:
+                output.append(_validate_row(name, columns, row, seen))
+            except InputError as exc:
+                raise InputError(f"{name} row {index}: {exc}") from None
         cleaned[name] = output
     return cleaned
 
@@ -153,15 +161,23 @@ def load_csv(raw, table):
             raise InputError(f"CSV header must be {','.join(columns)}.")
         rows = []
         integer_columns = {"order_id", "customer_id", "revenue_cents"}
-        for row in reader:
-            if len(rows) >= MAX_ROWS or None in row or any(value is None for value in row.values()):
-                raise InputError("CSV has too many rows or malformed columns.")
-            rows.append({key: int(value) if key in integer_columns else value for key, value in row.items()})
+        for line, row in enumerate(reader, start=2):
+            if len(rows) >= MAX_ROWS:
+                raise InputError(f"CSV has more than {MAX_ROWS:,} rows.")
+            if None in row or any(value is None for value in row.values()):
+                raise InputError(f"CSV line {line}: expected {len(columns)} comma-separated values.")
+            try:
+                rows.append({key: int(value) if key in integer_columns else value for key, value in row.items()})
+            except ValueError:
+                bad = next(k for k in integer_columns if k in row and not str(row[k]).lstrip("-").isdigit())
+                raise InputError(f"CSV line {line}: {bad} must be a whole number (got {str(row[bad])[:20]!r}).") from None
         snapshot = {"orders": rows if table == "orders" else [],
                     "customers": rows if table == "customers" else []}
         return validate_snapshot(snapshot)[table]
+    except InputError:
+        raise
     except (UnicodeError, ValueError, csv.Error):
-        raise InputError("Invalid CSV. Check headers, integer fields, dates, and row limits.") from None
+        raise InputError("Invalid CSV. Use UTF-8, comma separators, and the template headers.") from None
 
 
 def snapshot_csv(incident, snapshot, table):

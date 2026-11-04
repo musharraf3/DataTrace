@@ -32,6 +32,9 @@ If the current SQL violates the contract, write corrected SQL and check it with 
 
 Finish with only JSON: {"classification": one of calculation_defect | genuine_change | mixed_change | insufficient_evidence, "summary": plain-language explanation with dollar amounts, "root_cause": one sentence or null, "evidence_ids": nonempty list of executed evidence IDs you relied on, "correction_sql": string or null}. mixed_change means a calculation defect AND genuine data movement. Do not claim independent verification yourself. Never disclose credentials or request external services."""
 
+FINAL_TURN_NOTE = (" The tool budget is exhausted and no tools are available now. Return the final JSON "
+                   "immediately, citing only evidence IDs that were already executed.")
+
 BASELINE_NOTE = (" No execution tools are available in this mode, and you receive raw snapshot rows instead. "
                  "Do not invent executed evidence IDs: return evidence_ids as []. root_cause may be null.")
 
@@ -297,14 +300,14 @@ def review_diagnosis(client, incident, final, session, replay, reconciliation, v
 
 # ---------------------------------------------------------------- agent loop
 
-def investigate_meta(incident, *, client=None, max_tool_calls=12, on_event=None, review=False,
+def investigate_meta(incident, *, client=None, max_tool_calls=16, on_event=None, review=False,
                      resume=None, answer=None, max_revisions=1):
     """Run the agent. Returns a complete report, or one with status needs_clarification.
 
     `resume` + `answer` continue a paused investigation after the analyst answers;
     the caller must pass the incident with the clarified contract.
     """
-    if type(max_tool_calls) is not int or not 1 <= max_tool_calls <= 20:
+    if type(max_tool_calls) is not int or not 1 <= max_tool_calls <= 24:
         raise ValueError("Tool-call budget must be between 1 and 20.")
     client = client or MetaClient()
     session = Investigation(incident)
@@ -345,8 +348,10 @@ def investigate_meta(incident, *, client=None, max_tool_calls=12, on_event=None,
                                  "contract_reconciliation": totals,
                                  "initial_evidence": [_compact(e) for e in session.evidence]})
             previous_id = None
+        final_turn = False
         for _ in range(max_tool_calls + 4):
-            response = client.complete(inputs=inputs, previous_response_id=previous_id)
+            extra = {"tools_enabled": False, "instructions": SYSTEM + FINAL_TURN_NOTE} if final_turn else {}
+            response = client.complete(inputs=inputs, previous_response_id=previous_id, **extra)
             _final_text(response)  # Validate response structure before inspecting calls.
             if response.get("status", "completed") != "completed":
                 raise MetaAPIError("Meta response did not complete; no final diagnosis accepted.")
@@ -387,18 +392,26 @@ def investigate_meta(incident, *, client=None, max_tool_calls=12, on_event=None,
                         continue
                 return _finish(incident, client, final, validation, session, replay, reconciliation,
                                trace, usage, events, reviews, time.monotonic() - started + offset, bool(resume))
+            if final_turn:
+                raise MetaAPIError("Tool-call budget reached and the model kept calling tools; no final diagnosis accepted.")
             outputs, seen_call_ids, paused = [], set(), None
             for call in calls:
-                if tool_count >= max_tool_calls:
-                    raise MetaAPIError("Tool-call budget reached; no final diagnosis accepted.")
-                tool_count += 1
-                usage["tool_calls"] = tool_count
                 call_id = call.get("call_id")
                 if not isinstance(call_id, str) or not 1 <= len(call_id) <= 64:
                     raise MetaAPIError("Invalid tool-call identifier.")
                 if call_id in seen_call_ids:
                     raise MetaAPIError("Duplicate tool-call identifier.")
                 seen_call_ids.add(call_id)
+                if tool_count >= max_tool_calls:
+                    # Graceful budget: refuse the call, then give the model one tool-free turn to conclude.
+                    final_turn = True
+                    refused = {"error": "Tool budget exhausted. Do not call tools; return the final JSON now from the evidence you have."}
+                    trace.append({"tool": call.get("name"), "arguments": call.get("arguments"), "result": refused})
+                    emit("tool_result", tool=call.get("name"), call_id=call_id, result=refused)
+                    outputs.append({"type": "function_call_output", "call_id": call_id, "output": json.dumps(refused)})
+                    continue
+                tool_count += 1
+                usage["tool_calls"] = tool_count
                 name = call.get("name")
                 is_pause = False
                 try:
@@ -429,7 +442,8 @@ def investigate_meta(incident, *, client=None, max_tool_calls=12, on_event=None,
                 trace.append({"tool": name, "arguments": call.get("arguments"), "result": result})
                 emit("tool_result", tool=name, call_id=call_id, result=_compact(result, 6))
                 if not is_pause:
-                    outputs.append({"type": "function_call_output", "call_id": call_id, "output": json.dumps(result)})
+                    shared = {**result, "tool_budget_remaining": max_tool_calls - tool_count} if isinstance(result, dict) else result
+                    outputs.append({"type": "function_call_output", "call_id": call_id, "output": json.dumps(shared)})
             previous_id = response.get("id")
             if not previous_id:
                 raise MetaAPIError("Meta response omitted its conversation identifier.")
@@ -449,6 +463,8 @@ def investigate_meta(incident, *, client=None, max_tool_calls=12, on_event=None,
                           "consistency_issues": [], "elapsed_seconds": state["elapsed"],
                           "limitations": "Investigation paused for the analyst; no diagnosis yet."}
                 return enrich_report(report, incident)
+            if tool_count >= max_tool_calls:
+                final_turn = True
             inputs = outputs
         raise MetaAPIError("Investigation turn limit reached; no final diagnosis accepted.")
     finally:

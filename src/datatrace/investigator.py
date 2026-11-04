@@ -27,6 +27,10 @@ class Investigation:
     def query(self, snapshot, sql):
         if snapshot not in self.runners:
             raise QueryRejected("Snapshot must be previous or current.")
+        key = (snapshot, " ".join(str(sql).split()))
+        for item in self.evidence:  # Identical query: return the same executed evidence.
+            if item.get("snapshot") == snapshot and " ".join(str(item.get("sql", "")).split()) == key[1]                     and "total_row_count" not in item:
+                return {**item, "cached": True}
         result = self.runners[snapshot].query(sql)
         result.update({"evidence_id": f"E{len(self.evidence) + 1}", "snapshot": snapshot})
         self.evidence.append(result)

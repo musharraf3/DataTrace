@@ -1,6 +1,7 @@
 """Streamlit application: describe a metric surprise, watch the Meta agent investigate, act on verified evidence."""
 
 import copy
+import html
 import io
 import json
 import os
@@ -50,6 +51,17 @@ LABELS = {"calculation_defect": ("Calculation defect", "#b42318"),
 
 
 # ---------------------------------------------------------------- safety helpers
+
+def _html(text):
+    """Escape model- or user-written text before it goes into an HTML block."""
+    return html.escape(str(text or ""), quote=True)
+
+
+def _md(text):
+    """Model text in Markdown: neutralise $ (LaTeX) without changing meaning."""
+    return str(text or "").replace("$", "\\$")
+
+
 
 def _load_secrets():
     if os.environ.get("DATATRACE_SKIP_DOTENV") != "1":
@@ -173,7 +185,7 @@ def _inputs(case, source):
                 headers = ["order_id", "customer_id", "order_date", "status", "kind", "revenue_cents"] if table == "orders" else ["customer_id", "region"]
                 column.caption(f"{snapshot.title()} {table} · {len(case.snapshots[snapshot][table]):,} rows (first 100 shown)")
                 column.dataframe(pd.DataFrame(case.snapshots[snapshot][table][:100], columns=headers),
-                                 use_container_width=True, hide_index=True, height=180)
+                                 width="stretch", hide_index=True, height=180)
     return case
 
 
@@ -203,7 +215,7 @@ def _intake(key_ready, scenario_key):
             if st.checkbox("Use the sample dashboard screenshot", key="sample_shot"):
                 image, image_type = (EXAMPLES / "dashboard_screenshot.png").read_bytes(), "image/png"
             if image:
-                st.image(image, use_container_width=True)
+                st.image(image, width="stretch")
         message = st.text_area("Message (optional)", key="intake_message", height=80,
                                placeholder="e.g. Paid November revenue jumped 68% after this morning's refresh. Is it real?")
         if st.button("Draft the investigation with Meta", key="draft"):
@@ -246,17 +258,17 @@ def _event(container, event):
             if not replay.empty:
                 replay["revenue_usd"] = replay["revenue_cents"].map(lambda c: f"${c / 100:,.2f}")
                 st.dataframe(replay[["sql_version", "snapshot", "revenue_usd", "row_count", "evidence_id"]],
-                             hide_index=True, use_container_width=True)
+                             hide_index=True, width="stretch")
         elif kind == "thinking":
-            st.caption(f"💭 {event['text'][:400]}")
+            st.caption(f"💭 {_md(event['text'][:400])}")
         elif kind == "tool_call":
             tool = event.get("tool")
             if tool == "query_snapshot":
-                st.markdown(f"{stamp} 🔍 **Hypothesis:** {event.get('purpose') or 'diagnostic query'} · *{event.get('snapshot')} snapshot*")
+                st.markdown(f"{stamp} 🔍 **Hypothesis:** {_md(event.get('purpose')) or 'diagnostic query'} · *{event.get('snapshot')} snapshot*")
                 if event.get("sql"):
                     st.code(event["sql"], language="sql")
             elif tool == "verify_correction":
-                st.markdown(f"{stamp} 🧪 **Testing a correction:** {event.get('purpose') or ''}")
+                st.markdown(f"{stamp} 🧪 **Testing a correction:** {_md(event.get('purpose'))}")
                 if event.get("sql"):
                     st.code(event["sql"], language="sql")
             elif tool == "request_clarification":
@@ -266,17 +278,17 @@ def _event(container, event):
         elif kind == "tool_result":
             result = event.get("result") or {}
             if "error" in result:
-                st.markdown(f"↳ ⚠️ rejected: {result['error']}")
+                st.markdown(f"↳ ⚠️ rejected: {_md(result['error'])}")
             elif "verified" in result:
                 (st.success if result["verified"] else st.warning)(f"↳ {result.get('evidence_id', '')} · {result.get('reason', '')}")
             elif "rows" in result:
                 truncated = " (truncated)" if result.get("truncated") else ""
                 st.markdown(f"↳ **{result.get('evidence_id')}** · {result.get('total_row_count', len(result['rows']))} row(s){truncated}")
                 if result["rows"]:
-                    st.dataframe(pd.DataFrame(result["rows"], columns=result["columns"]), hide_index=True, use_container_width=True)
+                    st.dataframe(pd.DataFrame(result["rows"], columns=result["columns"]), hide_index=True, width="stretch")
         elif kind == "diagnosis":
             label = LABELS.get(event["classification"], (event["classification"], "#475467"))[0]
-            st.markdown(f"{stamp} 🧾 **Agent diagnosis: {label}**. {event.get('root_cause') or ''}")
+            st.markdown(f"{stamp} 🧾 **Agent diagnosis: {label}**. {_md(event.get('root_cause'))}")
         elif kind == "verified":
             (st.success if event["verified"] else st.warning)(f"{stamp} Independent per-order check: {event['reason']}")
         elif kind == "review_start":
@@ -285,11 +297,11 @@ def _event(container, event):
             if event["verdict"] == "supported":
                 st.success(f"{stamp} Reviewer verdict: supported")
             else:
-                st.warning(f"{stamp} Reviewer challenged the diagnosis: " + "; ".join(event.get("concerns", [])))
+                st.warning(f"{stamp} Reviewer challenged the diagnosis: " + _md("; ".join(event.get("concerns", []))))
         elif kind == "revision":
             st.markdown(f"{stamp} ↩️ **Agent is revising** to address the reviewer's concerns")
         elif kind == "clarification":
-            st.info(f"{stamp} ❓ {event['question']}")
+            st.info(f"{stamp} ❓ {_md(event['question'])}")
         elif kind == "clarified":
             st.markdown(f"{stamp} ✅ **Analyst answered:** {event['answer']} refunds · investigation resumes")
 
@@ -330,7 +342,7 @@ def _revenue_bridge(previous_cents, current_cents, reconciliation):
                         legend=alt.Legend(title=None, orient="bottom")),
         tooltip=["Step:N", alt.Tooltip("Amount:Q", format="$,.2f")])
     labels = base.mark_text(dy=-10, fontWeight="bold", color="#17264a").encode(y="End:Q", text="Label:N")
-    st.altair_chart((bars + labels).properties(height=260), use_container_width=True)
+    st.altair_chart((bars + labels).properties(height=260), width="stretch")
 
 
 def _verdict_card(report):
@@ -345,13 +357,13 @@ def _verdict_card(report):
     review = report.get("review")
     review_html = ""
     if review:
-        text = f"🛡️ Independently reviewed by {review['model']}: {review['verdict']}"
+        text = f"🛡️ Independently reviewed by {_html(review['model'])}: {_html(review['verdict'])}"
         if len(report.get("review_history") or []) > 1:
             text += " · agent revised once after a challenge"
         review_html = f"<div class='trace-pill'>{text}</div>"
     if report.get("clarified"):
         review_html += "<div class='trace-pill'>🙋 Resumed after the analyst's answer</div>"
-    source = {"meta_live": "Meta agent · " + str(report.get("model")),
+    source = {"meta_live": "Meta agent · " + _html(report.get("model")),
               "offline_scripted": "Deterministic checks (no AI)"}.get(report["mode"], report["mode"])
     st.markdown(f"""<div class="verdict" style="border-left:6px solid {color}">
       <div class="verdict-kicker">VERDICT · {source}</div>
@@ -364,6 +376,9 @@ def _result(case, report, context_key):
     replay = report["replay"]
     previous_cents, current_cents = replay[0]["revenue_cents"], replay[3]["revenue_cents"]
     reconciliation = report.get("reconciliation")
+    if report.get("fallback_reason"):
+        st.warning("The live Meta agent could not finish (" + report["fallback_reason"][:200] +
+                   "). Showing the deterministic contract checks instead; no AI diagnosis is included.")
     _verdict_card(report)
     validation = report.get("validation") or {}
     a, b, c, d = st.columns(4)
@@ -382,7 +397,7 @@ def _result(case, report, context_key):
         d.metric("Corrected revenue", "Not verified")
     brief = (report.get("review") or {}).get("stakeholder_brief")
     if brief:
-        st.markdown(f"<div class='brief'><b>📨 Brief for the CFO</b> · drafted by the reviewer<br>{brief}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='brief'><b>📨 Brief for the CFO</b> · drafted by the reviewer<br>{_html(brief)}</div>", unsafe_allow_html=True)
     tabs = st.tabs(["Finding", "Agent timeline", "Affected orders", "Execution evidence", "Verify a correction", "Export"])
     with tabs[0]:
         if reconciliation is None:
@@ -391,8 +406,8 @@ def _result(case, report, context_key):
             _revenue_bridge(previous_cents, current_cents, reconciliation)
             st.caption("Real change applies the same order-level contract to both snapshots. Reporting error compares the query with that contract.")
         if report.get("root_cause"):
-            st.markdown(f"**Root cause:** {report['root_cause']}")
-        st.markdown(report["summary"].replace("$", "\\$"))
+            st.markdown(f"**Root cause:** {_md(report['root_cause'])}")
+        st.markdown(_md(report["summary"]))
         for issue in report.get("consistency_issues", []):
             st.warning(issue)
         if validation:
@@ -420,18 +435,18 @@ def _result(case, report, context_key):
             st.dataframe(orders.rename(columns={"order_id": "Order", "reported_cents": "Reported USD",
                 "expected_cents": "Expected USD", "difference_cents": "Difference USD",
                 "reported_rows": "Reported rows", "expected_rows": "Expected rows"}),
-                use_container_width=True, hide_index=True)
+                width="stretch", hide_index=True)
             if count > len(orders):
                 st.caption("Showing the 100 largest differences by absolute value.")
         else:
             st.info("No order differs from the metric contract." if reconciliation else "Define refund treatment first.")
     with tabs[3]:
         st.subheader("Four-way SQL and snapshot replay")
-        st.dataframe(replay, use_container_width=True, hide_index=True)
+        st.dataframe(replay, width="stretch", hide_index=True)
         for item in report["evidence"]:
             with st.expander(f"{item['evidence_id']} · {item['snapshot']} snapshot · {item.get('total_row_count', len(item['rows']))} result rows"):
                 st.code(item["sql"], language="sql")
-                st.dataframe(pd.DataFrame(item["rows"], columns=item["columns"]), use_container_width=True, hide_index=True)
+                st.dataframe(pd.DataFrame(item["rows"], columns=item["columns"]), width="stretch", hide_index=True)
                 if item["truncated"]:
                     st.caption("Displayed rows are capped; replay totals and validation use complete results.")
     with tabs[4]:
@@ -460,7 +475,7 @@ def _clarify_prompt(report):
         "Refund treatment is not defined. Should refunds reduce this revenue metric?"
     st.markdown(f"""<div class="verdict" style="border-left:6px solid #475467">
       <div class="verdict-kicker">THE AGENT PAUSED TO ASK YOU</div>
-      <div class="verdict-title" style="color:#344054;font-size:1.15rem">❓ {question}</div></div>""", unsafe_allow_html=True)
+      <div class="verdict-title" style="color:#344054;font-size:1.15rem">❓ {_html(question)}</div></div>""", unsafe_allow_html=True)
     left, right, _ = st.columns([1, 1, 2])
     if left.button("Exclude refunds (gross sales)", type="primary", key="answer-exclude"):
         st.session_state["pending_answer"] = "exclude"
@@ -512,7 +527,7 @@ def _benchmark_tab():
             column=alt.Column("Split:N", title=None, sort=list(dict.fromkeys(chart_rows["Split"])),
                               header=alt.Header(labelFontSize=13)))
         st.altair_chart(chart)
-    st.dataframe(pd.DataFrame(data["table"]), hide_index=True, use_container_width=True)
+    st.dataframe(pd.DataFrame(data["table"]), hide_index=True, width="stretch")
     st.caption(data.get("method", ""))
 
 
@@ -603,6 +618,7 @@ def main():
                           disabled=mode == RECORDED_MODE)
         if mode == RECORDED_MODE:
             source = "Bundled example"
+            st.caption("Recorded runs replay a real captured Meta run of the bundled incident; edits to SQL or the definition apply to live and offline modes.")
         with st.expander("Agent settings"):
             review = st.toggle("Independent reviewer (muse-wonder-1.0)", value=True)
             effort = st.select_slider("Agent reasoning effort", ["low", "medium", "high"], value="medium")
@@ -712,6 +728,14 @@ def main():
                 box.update(label="Investigation stopped", state="error")
                 st.session_state.pop("result", None)
                 st.error(str(exc))
+                if mode == LIVE and isinstance(exc, MetaAPIError):
+                    # Never leave the analyst empty-handed: show the deterministic contract checks instead.
+                    try:
+                        fallback = offline_walkthrough(case)
+                        fallback["fallback_reason"] = str(exc)
+                        st.session_state["result"] = (_context_key(case, mode, scenario_key), fallback)
+                    except (QueryRejected, ValueError):
+                        pass
         saved = st.session_state.get("result")
         if saved and saved[0] == context_key:
             report = copy.deepcopy(saved[1])
