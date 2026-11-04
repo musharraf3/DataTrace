@@ -6,7 +6,7 @@ A live run will produce the same diagnosis with slightly different wording.
 
 ## Before you record (10 minutes)
 
-1. `.\.venv\Scripts\python.exe run.py` and open <http://localhost:8501>. Browser zoom 90%, window 1440×900 or larger, bookmarks bar hidden.
+1. Close any older DataTrace terminal first (Ctrl-C). An old server left running from before the upgrade keeps answering on port 8501 with the old Streamlit and shows errors. Then run `.\.venv\Scripts\python.exe scripts\doctor.py` (it must print `RESULT OK`), start `.\.venv\Scripts\python.exe run.py`, and open the URL it prints. Browser zoom 90%, window 1440×900 or larger, bookmarks bar hidden. If Streamlit shows a "Help agents write better apps" popup, click **Don't show again**.
 2. Close every window showing `.env`. The app only ever shows "Meta key configured".
 3. Do one warm-up live run of the flagship incident so the first real take starts quickly.
 4. Recorder: Windows **Win+Alt+R** (Xbox Game Bar), OBS, or Clipchamp screen recording. Use a headset mic.

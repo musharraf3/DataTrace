@@ -67,11 +67,15 @@ def _load_secrets():
     if os.environ.get("DATATRACE_SKIP_DOTENV") != "1":
         from dotenv import load_dotenv
         load_dotenv()
+    # Touching st.secrets without a secrets.toml makes Streamlit render an error element,
+    # so only read it when a secrets file actually exists (Streamlit Cloud provides one).
     try:
+        if not st.secrets.load_if_toml_exists():
+            return
         for name in ["MODEL_API_KEY", "DATATRACE_PUBLIC_DEMO", "DATATRACE_DAILY_LIVE_LIMIT"]:
             if name in st.secrets and not os.environ.get(name):
                 os.environ[name] = str(st.secrets[name])
-    except Exception:  # Having no secrets file locally is normal.
+    except Exception:  # A malformed secrets file must not take the app down.
         pass
 
 
@@ -596,8 +600,8 @@ def _context_key(case, mode, scenario_key):
 
 
 def main():
-    _load_secrets()
     st.set_page_config(page_title="DataTrace | Metric investigator", page_icon="🔎", layout="wide")
+    _load_secrets()
     st.markdown(CSS, unsafe_allow_html=True)
     st.markdown("""<div class="trace-hero">
     <div class="trace-brand">DATATRACE · AN AGENT THAT EXPLAINS WHY A METRIC MOVED</div>
