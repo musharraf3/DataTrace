@@ -15,7 +15,7 @@ class QueryRejected(ValueError):
 class QueryRunner:
     FUNCTIONS = {"count", "sum", "min", "max", "avg", "coalesce", "ifnull", "nullif", "abs", "round"}
 
-    def __init__(self, snapshot, *, timeout=2.0, max_steps=200000, max_rows=100):
+    def __init__(self, snapshot, *, timeout=3.0, max_steps=20000000, max_rows=100):
         from .inputs import validate_snapshot
         snapshot = validate_snapshot(snapshot)
         self.connection = sqlite3.connect(":memory:")
@@ -49,7 +49,7 @@ class QueryRunner:
     def query(self, sql, *, max_rows=None):
         if not isinstance(sql, str) or not sql.strip() or len(sql) > 10000:
             raise QueryRejected("Provide one nonempty SELECT statement of at most 10,000 characters.")
-        cap = self.max_rows if max_rows is None else min(max_rows, 10000)
+        cap = self.max_rows if max_rows is None else min(max_rows, 50000)
         started = time.monotonic()
         steps = 0
 

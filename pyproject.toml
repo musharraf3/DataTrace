@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "datatrace-investigator"
-version = "0.2.0"
+version = "0.3.0"
 description = "Evidence-driven investigation of SQL metric changes with Meta Model API"
 requires-python = ">=3.11"
-dependencies = ["streamlit>=1.30,<2", "python-dotenv>=1,<2"]
+dependencies = ["streamlit>=1.45,<2", "python-dotenv>=1,<2", "pandas>=2", "altair>=5"]
 
 [project.scripts]
 datatrace = "datatrace.cli:main"

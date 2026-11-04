@@ -21,7 +21,7 @@ def test_transport_uses_official_endpoint_and_no_tools_for_baseline(monkeypatch)
     request, timeout = seen[0]
     body = json.loads(request.data)
     assert request.full_url == "https://api.meta.ai/v1/responses"
-    assert timeout == 30 and "tools" not in body and not body["store"]
+    assert timeout == 180 and "tools" not in body and not body["store"]
     assert request.get_header("Authorization") == "Bearer test-placeholder"
 
 
@@ -40,7 +40,7 @@ def test_context_size_is_rejected_before_any_network_call(monkeypatch):
     monkeypatch.setenv("MODEL_API_KEY", "test-placeholder")
     monkeypatch.setattr("urllib.request.build_opener", lambda *args: pytest.fail("Must reject before network"))
     with pytest.raises(MetaAPIError, match="too large"):
-        MetaClient().complete(inputs="x" * 180001)
+        MetaClient().complete(inputs="x" * 2500001)
 
 
 def test_model_business_claim_cannot_override_a_failed_contract_check():

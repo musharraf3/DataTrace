@@ -33,3 +33,6 @@ data/private/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local-only planning notes (not published)
+private/

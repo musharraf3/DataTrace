@@ -9,8 +9,8 @@ from datetime import date
 
 from .cases import Incident
 
-MAX_BYTES = 1024 * 1024
-MAX_ROWS = 2000
+MAX_BYTES = 8 * 1024 * 1024
+MAX_ROWS = 25000
 ORDER_COLUMNS = ["order_id", "customer_id", "order_date", "status", "kind", "revenue_cents"]
 CUSTOMER_COLUMNS = ["customer_id", "region"]
 
@@ -129,7 +129,7 @@ def load_bundle(raw):
     if isinstance(raw, str):
         raw = raw.encode("utf-8")
     if not isinstance(raw, bytes) or len(raw) > MAX_BYTES:
-        raise InputError("Incident JSON must be at most 1 MiB.")
+        raise InputError("Incident JSON must be at most 8 MiB.")
     try:
         data = json.loads(raw)
         if not isinstance(data, dict) or data.get("format_version") != 1:
@@ -145,7 +145,7 @@ def load_bundle(raw):
 
 def load_csv(raw, table):
     if table not in {"orders", "customers"} or not isinstance(raw, bytes) or len(raw) > MAX_BYTES:
-        raise InputError("Provide a supported CSV table of at most 1 MiB.")
+        raise InputError("Provide a supported CSV table of at most 8 MiB.")
     try:
         reader = csv.DictReader(io.StringIO(raw.decode("utf-8-sig")))
         columns = ORDER_COLUMNS if table == "orders" else CUSTOMER_COLUMNS
