@@ -4,8 +4,8 @@ Target length **2:45–3:00**. Judging weights: Impact 30%, Meta AI tooling 25%,
 
 ## Two ways to submit a video
 
-1. **Backup, ready now:** [`docs/video/datatrace-demo.mp4`](video/datatrace-demo.mp4) (2:43, narrated with Windows speech, built by `scripts/make_demo_video.py` from the real app). Captions: [`docs/demo_captions.srt`](demo_captions.srt). You can submit it as is if the morning gets tight.
-2. **Better: your own voice over the same flow.** Judges respond to a real person who knows the domain. Follow the script below, or play the backup video muted and read `docs/demo_captions.srt` over it while screen-recording.
+1. **Ready to submit as is:** [`docs/video/datatrace-demo.mp4`](video/datatrace-demo.mp4) (under 3:00, 1920×1080, neural-voice narration, burned-in captions and chapter labels). It was recorded from the real app making **live** Meta API calls: voice-note intake, the claims investigation, and the clarification pause and resume. Model waiting time is trimmed or sped up, and the video labels it on screen. Upload steps, title, description and chapters: [`docs/video/YOUTUBE.md`](video/YOUTUBE.md). Rebuild it with `python scripts/make_demo_video.py` (live, about $0.30) or `--recorded` (free).
+2. **Optional: your own voice over the same flow.** Judges respond to a real person who knows the domain. Follow the script below, or play the video muted and read `docs/demo_captions.srt` over it while screen-recording.
 
 Every number below comes from the committed recording `examples/recorded/synpuf-eligibility_spans.json` and the deterministic reconciliation, so a live run produces the same dollars with slightly different wording.
 

@@ -343,6 +343,11 @@ def _usd(cents):
     return f"${cents / 100:,.2f}"
 
 
+def _signed_usd(cents):
+    """Compact signed dollars for metric cards, e.g. +$4,561,400 (fits four cards on a laptop screen)."""
+    return f"{'-' if cents < 0 else '+'}${abs(cents) / 100:,.0f}"
+
+
 def _revenue_bridge(previous_cents, current_cents, reconciliation, money_label="Revenue (USD)"):
     steps = [("Prior reported", 0, previous_cents, "Reported total")]
     prior_expected = reconciliation["previous_expected_cents"]
@@ -416,13 +421,13 @@ def _result(case, report, context_key):
                 "**Meta agent** for the investigation; this verifier is the referee that checks the agent's fix.")
     validation = report.get("validation") or {}
     a, b, c, d = st.columns(4)
-    a.metric("Reported change", f"{(current_cents - previous_cents) / 100:+,.0f} USD")
+    a.metric("Reported change", _signed_usd(current_cents - previous_cents))
     if reconciliation is None:
         b.metric("Real change", "Needs definition")
         c.metric("Reporting error", "Needs definition")
     else:
-        b.metric("Real change", f"{reconciliation['underlying_change_cents'] / 100:+,.0f} USD")
-        c.metric("Reporting error", f"{reconciliation['current_error_cents'] / 100:+,.0f} USD")
+        b.metric("Real change", _signed_usd(reconciliation['underlying_change_cents']))
+        c.metric("Reporting error", _signed_usd(reconciliation['current_error_cents']))
     if validation.get("verified") and report.get("correction_sql"):
         d.metric(f"Verified corrected {dom.metric_noun}", f"${validation['actual_revenue_cents'] / 100:,.0f}")
     elif reconciliation and reconciliation["current_error_cents"] == 0 and not reconciliation["affected_order_count"]:

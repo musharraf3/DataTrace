@@ -101,3 +101,10 @@ def test_healthcare_split_offline_regression():
     from datatrace.investigator import offline_walkthrough
     for case in healthcare_cases():
         assert offline_walkthrough(case)["classification"] == case.expected_classification
+
+
+def test_intake_defines_refund_policy_direction():
+    # "net of reversals" once drafted as "exclude"; the prompt and schema now pin the meaning.
+    from datatrace.intake import INTAKE_PROMPT, INTAKE_SCHEMA
+    assert '"include" when they are netted' in INTAKE_PROMPT and "net of reversals" in INTAKE_PROMPT
+    assert "netted" in INTAKE_SCHEMA["properties"]["refund_policy"]["description"]

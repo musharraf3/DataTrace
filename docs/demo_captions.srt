@@ -1,31 +1,243 @@
 1
-00:00:00,300 --> 00:00:13,842
-Eight A M. The monthly cost review is at ten. Paid inpatient claims for November just jumped forty percent overnight. Some claims run-out is normal. So is this real, or is the dashboard wrong?
+00:00:00,400 --> 00:00:02,057
+It's 8 a.m.
 
 2
-00:00:14,661 --> 00:00:27,608
-DataTrace is a Meta agent that answers that question with evidence. It runs real SQL, separates genuine change from reporting errors down to the individual claim, and only reports a fix after an independent check verifies it.
+00:00:01,907 --> 00:00:04,299
+The monthly cost review is at 10,
 
 3
-00:00:28,413 --> 00:00:42,426
-An actuary leaves a voice note. Muse Voice Transcribe turns it into text, and Muse Spark reads the note and the dashboard screenshot, and drafts the metric definition: paid claims, November service month, net of reversals.
+00:00:04,149 --> 00:00:07,969
+and paid inpatient claims for November just jumped 40%
 
 4
-00:00:43,242 --> 00:01:09,874
-Now Muse Spark works as an agent, on real-format CMS Medicare claims. It never sees the raw rows. It forms hypotheses, like duplicate eligibility rows, members dropped by a join, and date or reversal boundaries, and tests each one with a bounded, read-only query. It checks a corrected query against an independent claim-by-claim verifier, and a second model, Muse Wonder, reviews the diagnosis against the evidence.
+00:00:07,819 --> 00:00:08,649
+overnight.
 
 5
-00:01:10,686 --> 00:01:34,948
-The verdict. Of a 5.21 million dollars jump, 4.56 million dollars is genuine claims run-out. 649,400 dollars is a reporting error. The eligibility rebuild gave members who switched coverage two rows, double counting their claims, while deceased members were dropped. The fix is verified claim by claim, and here is the brief for the cost review.
+00:00:08,499 --> 00:00:10,877
+Some claims run-out is normal.
 
 6
-00:01:35,775 --> 00:01:53,625
-When the definition is missing, DataTrace does not guess. The agent pauses and asks whether reversals should net against paid claims. I answer: include them, net paid. The same investigation resumes from where it paused, finishes, verifies its fix, and is reviewed again.
+00:00:10,727 --> 00:00:13,731
+So is this jump real, or is the dashboard wrong?
 
 7
-00:01:56,955 --> 00:02:24,846
-We measured it in 360 paid runs against the same Meta model given every raw row and no tools. The agent was correct in 179 of 180. On realistic incidents the baseline usually names the right category, but put the right dollar amounts on it in only 12/24 runs, against 24/24 for the agent. At forty-two thousand rows, the raw data no longer fits in the context window, and only the agent can investigate.
+00:00:14,675 --> 00:00:18,249
+In healthcare finance, that question lands on an analyst's
 
 8
-00:02:25,657 --> 00:02:42,514
-We also stress-tested the reviewer. It caught 28 of 28 planted errors. Four Meta model roles, a sandboxed SQL engine, and a verifier the model cannot fool, all built during the hackathon. DataTrace. Evidence before explanations.
+00:00:18,099 --> 00:00:21,437
+desk every month, and a wrong answer moves budgets and
+
+9
+00:00:21,287 --> 00:00:21,968
+reserves.
+
+10
+00:00:21,818 --> 00:00:25,872
+DataTrace is a Meta agent that answers it with evidence,
+
+11
+00:00:25,722 --> 00:00:26,709
+not guesses.
+
+12
+00:00:27,643 --> 00:00:29,984
+It starts from what the actuary sent:
+
+13
+00:00:29,834 --> 00:00:32,354
+a voice note and a dashboard screenshot.
+
+14
+00:00:32,204 --> 00:00:35,589
+Muse Voice Transcribe turns the note into text,
+
+15
+00:00:35,439 --> 00:00:38,823
+and Muse Spark reads both and drafts the metric
+
+16
+00:00:38,673 --> 00:00:42,127
+definition: paid claims, November service month,
+
+17
+00:00:41,977 --> 00:00:43,297
+net of reversals.
+
+18
+00:00:44,277 --> 00:00:47,979
+Now Muse Spark investigates real-format CMS Medicare
+
+19
+00:00:47,829 --> 00:00:50,439
+claims, and it never sees a raw row.
+
+20
+00:00:50,289 --> 00:00:53,834
+Each step is a hypothesis, tested with bounded,
+
+21
+00:00:53,684 --> 00:00:56,869
+read-only SQL: duplicate eligibility rows,
+
+22
+00:00:56,719 --> 00:00:59,975
+members dropped by a join, date boundaries,
+
+23
+00:00:59,825 --> 00:01:01,854
+pending claims, reversals.
+
+24
+00:01:01,704 --> 00:01:05,436
+It proposes a corrected query, an independent verifier
+
+25
+00:01:05,286 --> 00:01:08,753
+checks it claim by claim, and a second Meta model,
+
+26
+00:01:08,603 --> 00:01:11,075
+Muse Wonder, reviews the diagnosis.
+
+27
+00:01:11,987 --> 00:01:13,255
+Here's the verdict.
+
+28
+00:01:13,105 --> 00:01:18,765
+Of a $5.21 million jump, $4.56 million is genuine claims
+
+29
+00:01:18,615 --> 00:01:19,552
+run-out.
+
+30
+00:01:19,402 --> 00:01:25,684
+$649,400 is a reporting error, across 69 claims.
+
+31
+00:01:25,534 --> 00:01:29,397
+The eligibility rebuild gave members who switched coverage
+
+32
+00:01:29,247 --> 00:01:31,894
+two rows, double counting their claims,
+
+33
+00:01:31,744 --> 00:01:33,750
+and dropped deceased members.
+
+34
+00:01:33,600 --> 00:01:35,748
+The corrected query is verified,
+
+35
+00:01:35,598 --> 00:01:39,057
+and Muse Wonder writes the brief for the cost review.
+
+36
+00:01:40,005 --> 00:01:41,973
+When the definition is missing,
+
+37
+00:01:41,823 --> 00:01:42,970
+it doesn't guess.
+
+38
+00:01:42,820 --> 00:01:46,041
+This request never said how reversals count,
+
+39
+00:01:45,891 --> 00:01:48,065
+so the agent pauses and asks.
+
+40
+00:01:47,915 --> 00:01:50,341
+The analyst answers: net paid.
+
+41
+00:01:50,191 --> 00:01:53,300
+The same investigation resumes where it stopped,
+
+42
+00:01:53,150 --> 00:01:55,765
+verifies its fix, and is reviewed again.
+
+43
+00:01:56,675 --> 00:02:00,950
+We ran 360 paid runs against the same Meta model given
+
+44
+00:02:00,800 --> 00:02:03,013
+every raw row and no tools.
+
+45
+00:02:02,863 --> 00:02:06,546
+On CMS claims, the baseline usually named the right
+
+46
+00:02:06,396 --> 00:02:10,426
+problem, but put the right dollars on it in only 4 of 16
+
+47
+00:02:10,276 --> 00:02:10,773
+runs.
+
+48
+00:02:10,623 --> 00:02:13,225
+The agent: 16 of 16.
+
+49
+00:02:13,075 --> 00:02:17,317
+At 42,000 rows, the raw data doesn't even fit in the
+
+50
+00:02:17,167 --> 00:02:18,497
+context window.
+
+51
+00:02:19,398 --> 00:02:23,435
+We also stress-tested the reviewer by planting errors in
+
+52
+00:02:23,285 --> 00:02:25,935
+correct diagnoses: inflated amounts,
+
+53
+00:02:25,785 --> 00:02:28,295
+invented causes, unverified fixes.
+
+54
+00:02:28,145 --> 00:02:30,630
+Muse Wonder caught 28 of 28.
+
+55
+00:02:31,537 --> 00:02:35,261
+Four Meta model roles, around a sandboxed SQL engine and a
+
+56
+00:02:35,111 --> 00:02:37,109
+verifier the model can't fool.
+
+57
+00:02:36,959 --> 00:02:39,566
+The same engine also runs retail revenue,
+
+58
+00:02:39,416 --> 00:02:42,262
+and an adapter runs it on open-weight models.
+
+59
+00:02:43,199 --> 00:02:44,396
+DataTrace.
+
+60
+00:02:44,246 --> 00:02:46,931
+Evidence before explanations.
+
+61
+00:02:46,781 --> 00:02:50,162
+Built during the hackathon, and open source on GitHub.

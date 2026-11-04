@@ -1,6 +1,6 @@
 # X post for the Most Viral bonus (optional)
 
-Engagement counts through **Nov 8**, so post right after you submit. Attach a 30–45 s clip: the live agent timeline, then the verdict card (trim `docs/video/datatrace-demo.mp4` from about 0:43 to 1:35).
+Engagement counts through **Nov 8**, so post right after you submit. Attach a 30–45 s clip: the live agent timeline, then the verdict card (trim `docs/video/datatrace-demo.mp4` from 0:43 to 1:39).
 
 **Post**
 
