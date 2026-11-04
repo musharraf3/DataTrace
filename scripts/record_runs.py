@@ -18,9 +18,10 @@ from dotenv import load_dotenv  # noqa: E402
 
 from datatrace.cases import make_case  # noqa: E402
 from datatrace.meta import MetaClient, investigate_meta  # noqa: E402
+from datatrace.healthcare import SCENARIOS as CLAIMS, make_claims_case  # noqa: E402
 from datatrace.scenarios import SCENARIOS, make_realistic_case  # noqa: E402
 
-CHOICES = [("realistic", name) for name in SCENARIOS] + [
+CHOICES = [("synpuf", name) for name in CLAIMS] + [("realistic", name) for name in SCENARIOS] + [
     ("classic", name) for name in ["duplicate_join", "growth", "ambiguous", "dropped_records", "date_filter"]]
 
 
@@ -30,14 +31,16 @@ def _public(report):
 
 def record(choice):
     kind, name = choice
-    case = make_realistic_case(name) if kind == "realistic" else make_case(name, 1)
+    case = (make_claims_case(name) if kind == "synpuf" else
+            make_realistic_case(name) if kind == "realistic" else make_case(name, 1))
     client = MetaClient()
     report = investigate_meta(case, client=client, review=True)
     output = {"recorded_with": {"agent": client.model, "reviewer": client.review_model, "effort": client.effort},
               "report": _public(report)}
     if report.get("status") == "needs_clarification":
-        clarified = replace(case, contract={**case.contract, "refund_policy": "exclude"})
-        resumed = investigate_meta(clarified, client=client, review=True, resume=report["resume_state"], answer="exclude")
+        answer = "include" if case.domain == "healthcare" else "exclude"  # Net paid is the claims convention.
+        clarified = replace(case, contract={**case.contract, "refund_policy": answer})
+        resumed = investigate_meta(clarified, client=client, review=True, resume=report["resume_state"], answer=answer)
         output.update(paused=_public(report), resumed=_public(resumed), report=_public(resumed))
     final = output["report"]
     destination = ROOT / "examples" / "recorded" / f"{kind}-{name}.json"

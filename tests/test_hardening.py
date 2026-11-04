@@ -52,7 +52,7 @@ def test_non_allowlisted_functions_stay_blocked(sql):
 def test_model_text_is_escaped_before_html_rendering():
     from datatrace.ui import _html, _md
     assert _html('<img src=x onerror="alert(1)">') == "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;"
-    assert _md("grew $115,080 to $304,397") == "grew \$115,080 to \$304,397"
+    assert _md("grew $115,080 to $304,397") == r"grew \$115,080 to \$304,397"
 
 
 def test_exported_report_includes_root_cause_brief_steps_and_cost():
@@ -65,3 +65,39 @@ def test_exported_report_includes_root_cause_brief_steps_and_cost():
     for text in ["**Root cause:**", "## Brief for leadership", "## How the agent investigated", "list-price cost"]:
         assert text in md
     assert 0 < list_price_usd(report) < 1
+
+
+def test_healthcare_domain_speaks_claims_vocabulary_and_verifies():
+    from datatrace.healthcare import make_claims_case
+    from datatrace.investigator import Investigation, offline_walkthrough
+    case = make_claims_case("eligibility_spans")
+    context = case.public_context()
+    assert set(context["schema"]) == {"claims", "eligibility"} and "denied" in context["vocabulary"]["status"]
+    assert "claim_id, paid_cents" in context["sql_dialect"] and "orders" not in case.current_sql
+    report = offline_walkthrough(case)
+    assert report["classification"] == "mixed_change" and report["validation"]["verified"]
+    assert "FROM claims" in report["correction_sql"]
+    session = Investigation(case)
+    try:
+        with pytest.raises(QueryRejected):
+            session.query("current", "SELECT * FROM orders")  # Revenue tables do not exist in this domain.
+        assert session.query("current", "SELECT COUNT(*) FROM claims WHERE kind = 'reversal'")["rows"][0][0] > 0
+    finally:
+        session.close()
+
+
+def test_healthcare_csv_round_trip_uses_domain_headers():
+    from datatrace.healthcare import make_claims_case
+    from datatrace.inputs import snapshot_csv
+    case = make_claims_case("runout_growth")
+    text = snapshot_csv(case, "current", "orders")
+    assert text.startswith("claim_id,member_id,service_date,status,kind,paid_cents")
+    assert ",reversal," in text
+    assert load_csv(text.encode(), "orders", "healthcare") == case.snapshots["current"]["orders"]
+
+
+def test_healthcare_split_offline_regression():
+    from datatrace.healthcare import healthcare_cases
+    from datatrace.investigator import offline_walkthrough
+    for case in healthcare_cases():
+        assert offline_walkthrough(case)["classification"] == case.expected_classification

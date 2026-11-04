@@ -10,15 +10,17 @@
   "model": "muse-spark-1.3",
   "model_classification": "mixed_change",
   "model_correction_sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund'",
-  "model_summary": "Reported revenue rose from $1200.00 (E1) to $1380.00 (E4), +$180.00. $100.00 is genuine growth from new paid October order 6 ($100.00 on 2026-10-25), while $80.00 is a defect from including paid order 4 dated 2026-11-01, which is outside the exclusive end date. Correct October revenue on current data is $1300.00.",
+  "model_summary": "Reported Paid October revenue rose from $1,200.00 to $1,380.00. $100.00 is genuine growth from new paid October order 6 ($100.00 on 2026-10-25), raising correct total to $1,300.00. The remaining $80.00 is a defect from including order 4 ($80.00 on 2026-11-01), which is outside the October exclusive end date.",
   "consistency_issues": [],
   "classification": "mixed_change",
-  "summary": "Reported revenue rose from $1200.00 (E1) to $1380.00 (E4), +$180.00. $100.00 is genuine growth from new paid October order 6 ($100.00 on 2026-10-25), while $80.00 is a defect from including paid order 4 dated 2026-11-01, which is outside the exclusive end date. Correct October revenue on current data is $1300.00.",
-  "root_cause": "Current SQL changed the end bound from < '2026-11-01' to <= '2026-11-01', incorrectly including November 1 order 4.",
+  "summary": "Reported Paid October revenue rose from $1,200.00 to $1,380.00. $100.00 is genuine growth from new paid October order 6 ($100.00 on 2026-10-25), raising correct total to $1,300.00. The remaining $80.00 is a defect from including order 4 ($80.00 on 2026-11-01), which is outside the October exclusive end date.",
+  "root_cause": "Current SQL changed the end bound to <= '2026-11-01', incorrectly including the November 1 order in October revenue.",
   "evidence_ids": [
+   "E1",
    "E2",
    "E4",
    "E5",
+   "E6",
    "E7",
    "E8",
    "E9"
@@ -210,7 +212,7 @@
     "revenue_cents": 138000
    },
    {
-    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01'",
+    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01' ORDER BY order_id",
     "columns": [
      "order_id",
      "order_date",
@@ -230,10 +232,10 @@
     "truncated": false,
     "elapsed_ms": 0.0,
     "evidence_id": "E5",
-    "snapshot": "current"
+    "snapshot": "previous"
    },
    {
-    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01'",
+    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01' ORDER BY order_id",
     "columns": [
      "order_id",
      "order_date",
@@ -253,7 +255,7 @@
     "truncated": false,
     "elapsed_ms": 0.0,
     "evidence_id": "E6",
-    "snapshot": "previous"
+    "snapshot": "current"
    },
    {
     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_id = 6",
@@ -279,7 +281,7 @@
     "snapshot": "current"
    },
    {
-    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date >= '2026-10-01' AND order_date <= '2026-11-01' ORDER BY order_id",
+    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders ORDER BY order_id",
     "columns": [
      "order_id",
      "order_date",
@@ -400,9 +402,9 @@
   "trace": [
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Test boundary includes Nov 1 order\",\"snapshot\":\"current\",\"sql\":\"SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01'\"}",
+    "arguments": "{\"purpose\":\"Test Nov 1 boundary order inclusion\",\"snapshot\":\"previous\",\"sql\":\"SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01' ORDER BY order_id\"}",
     "result": {
-     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01'",
+     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01' ORDER BY order_id",
      "columns": [
       "order_id",
       "order_date",
@@ -422,14 +424,14 @@
      "truncated": false,
      "elapsed_ms": 0.0,
      "evidence_id": "E5",
-     "snapshot": "current"
+     "snapshot": "previous"
     }
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Check boundary order existed previously\",\"snapshot\":\"previous\",\"sql\":\"SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01'\"}",
+    "arguments": "{\"purpose\":\"Test Nov 1 boundary order inclusion\",\"snapshot\":\"current\",\"sql\":\"SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01' ORDER BY order_id\"}",
     "result": {
-     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01'",
+     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01' ORDER BY order_id",
      "columns": [
       "order_id",
       "order_date",
@@ -449,12 +451,12 @@
      "truncated": false,
      "elapsed_ms": 0.0,
      "evidence_id": "E6",
-     "snapshot": "previous"
+     "snapshot": "current"
     }
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Isolate genuine new October order\",\"snapshot\":\"current\",\"sql\":\"SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_id = 6\"}",
+    "arguments": "{\"purpose\":\"Verify new October order genuine growth\",\"snapshot\":\"current\",\"sql\":\"SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_id = 6\"}",
     "result": {
      "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_id = 6",
      "columns": [
@@ -481,9 +483,9 @@
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Verify status and kind filters\",\"snapshot\":\"current\",\"sql\":\"SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date >= '2026-10-01' AND order_date <= '2026-11-01' ORDER BY order_id\"}",
+    "arguments": "{\"purpose\":\"List all orders to isolate per-item diff\",\"snapshot\":\"current\",\"sql\":\"SELECT order_id, order_date, status, kind, revenue_cents FROM orders ORDER BY order_id\"}",
     "result": {
-     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date >= '2026-10-01' AND order_date <= '2026-11-01' ORDER BY order_id",
+     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders ORDER BY order_id",
      "columns": [
       "order_id",
       "order_date",
@@ -543,7 +545,7 @@
    },
    {
     "tool": "verify_correction",
-    "arguments": "{\"purpose\":\"Verify exclusive end-date correction\",\"sql\":\"SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund'\"}",
+    "arguments": "{\"purpose\":\"Verify corrected SQL excludes Nov 1\",\"sql\":\"SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund'\"}",
     "result": {
      "verified": true,
      "evidence_id": "E9",
@@ -558,8 +560,8 @@
    }
   ],
   "usage": {
-   "input_tokens": 10898,
-   "output_tokens": 3725,
+   "input_tokens": 11396,
+   "output_tokens": 3653,
    "model_requests": 3,
    "tool_calls": 5,
    "review_requests": 1
@@ -611,36 +613,36 @@
    },
    {
     "type": "thinking",
-    "t": 7.34,
-    "text": "Identifying an off-by-one date boundary defect from inclusive to exclusive range and noting a separate data addition affecting totals."
+    "t": 10.75,
+    "text": "Analyzing SQL date boundary and refund filter differences to explain the 8k revenue movement."
    },
    {
     "type": "thinking",
-    "t": 7.34,
-    "text": "Designing targeted diagnostic queries to validate the boundary and refund filters using existing evidence IDs."
+    "t": 10.75,
+    "text": "Formulating targeted read-only SQLite diagnostics to verify boundary dates and order statuses."
    },
    {
     "type": "thinking",
-    "t": 7.34,
-    "text": "Running four parallel snapshot queries to isolate the date boundary and new order effects."
+    "t": 10.75,
+    "text": "Running parallel read-only queries to capture full rowsets and confirm boundary inclusion."
    },
    {
     "type": "tool_call",
-    "t": 7.34,
+    "t": 10.75,
     "tool": "query_snapshot",
-    "purpose": "Test boundary includes Nov 1 order",
-    "snapshot": "current",
-    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01'",
+    "purpose": "Test Nov 1 boundary order inclusion",
+    "snapshot": "previous",
+    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01' ORDER BY order_id",
     "question": null,
-    "call_id": "call_01a1a4c0fdae7077b666ac60b55e896c"
+    "call_id": "call_01a1a58761a17497b576c40a0d59f691"
    },
    {
     "type": "tool_result",
-    "t": 7.34,
+    "t": 10.75,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4c0fdae7077b666ac60b55e896c",
+    "call_id": "call_01a1a58761a17497b576c40a0d59f691",
     "result": {
-     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01'",
+     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01' ORDER BY order_id",
      "columns": [
       "order_id",
       "order_date",
@@ -659,26 +661,26 @@
      ],
      "truncated": false,
      "evidence_id": "E5",
-     "snapshot": "current"
+     "snapshot": "previous"
     }
    },
    {
     "type": "tool_call",
-    "t": 7.34,
+    "t": 10.75,
     "tool": "query_snapshot",
-    "purpose": "Check boundary order existed previously",
-    "snapshot": "previous",
-    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01'",
+    "purpose": "Test Nov 1 boundary order inclusion",
+    "snapshot": "current",
+    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01' ORDER BY order_id",
     "question": null,
-    "call_id": "call_01a1a4c0ff78762b90f1433c51c2c186"
+    "call_id": "call_01a1a58764607390bb8ba70133af25f8"
    },
    {
     "type": "tool_result",
-    "t": 7.34,
+    "t": 10.75,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4c0ff78762b90f1433c51c2c186",
+    "call_id": "call_01a1a58764607390bb8ba70133af25f8",
     "result": {
-     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01'",
+     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date = '2026-11-01' ORDER BY order_id",
      "columns": [
       "order_id",
       "order_date",
@@ -697,24 +699,24 @@
      ],
      "truncated": false,
      "evidence_id": "E6",
-     "snapshot": "previous"
+     "snapshot": "current"
     }
    },
    {
     "type": "tool_call",
-    "t": 7.34,
+    "t": 10.75,
     "tool": "query_snapshot",
-    "purpose": "Isolate genuine new October order",
+    "purpose": "Verify new October order genuine growth",
     "snapshot": "current",
     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_id = 6",
     "question": null,
-    "call_id": "call_01a1a4c1014477ec8a6460cfa38fe9ce"
+    "call_id": "call_01a1a58766c8777ba859365e07b255ef"
    },
    {
     "type": "tool_result",
-    "t": 7.34,
+    "t": 10.75,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4c1014477ec8a6460cfa38fe9ce",
+    "call_id": "call_01a1a58766c8777ba859365e07b255ef",
     "result": {
      "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_id = 6",
      "columns": [
@@ -740,21 +742,21 @@
    },
    {
     "type": "tool_call",
-    "t": 7.34,
+    "t": 10.75,
     "tool": "query_snapshot",
-    "purpose": "Verify status and kind filters",
+    "purpose": "List all orders to isolate per-item diff",
     "snapshot": "current",
-    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date >= '2026-10-01' AND order_date <= '2026-11-01' ORDER BY order_id",
+    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders ORDER BY order_id",
     "question": null,
-    "call_id": "call_01a1a4c1031075b8a328158e257a25d5"
+    "call_id": "call_01a1a587690971239704d6dc735cd872"
    },
    {
     "type": "tool_result",
-    "t": 7.34,
+    "t": 10.75,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4c1031075b8a328158e257a25d5",
+    "call_id": "call_01a1a587690971239704d6dc735cd872",
     "result": {
-     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date >= '2026-10-01' AND order_date <= '2026-11-01' ORDER BY order_id",
+     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders ORDER BY order_id",
      "columns": [
       "order_id",
       "order_date",
@@ -813,29 +815,24 @@
    },
    {
     "type": "thinking",
-    "t": 18.47,
-    "text": "Analyzing SQL date boundary regression from exclusive to inclusive end date and its impact on row counts and revenue totals across snapshots."
-   },
-   {
-    "type": "thinking",
-    "t": 18.47,
-    "text": "Drafting a corrected SQLite query and validating it before finalizing the fix."
+    "t": 21.17,
+    "text": "Analyzing SQL snapshots to separate a date-boundary defect from a genuine order addition and compute the net amount."
    },
    {
     "type": "tool_call",
-    "t": 18.47,
+    "t": 21.17,
     "tool": "verify_correction",
-    "purpose": "Verify exclusive end-date correction",
+    "purpose": "Verify corrected SQL excludes Nov 1",
     "snapshot": null,
     "sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund'",
     "question": null,
-    "call_id": "call_01a1a4c1280372b8bc76856dea994a68"
+    "call_id": "call_01a1a5878a82755ba84e5ba02f0c5568"
    },
    {
     "type": "tool_result",
-    "t": 18.47,
+    "t": 21.17,
     "tool": "verify_correction",
-    "call_id": "call_01a1a4c1280372b8bc76856dea994a68",
+    "call_id": "call_01a1a5878a82755ba84e5ba02f0c5568",
     "result": {
      "verified": true,
      "evidence_id": "E9",
@@ -850,45 +847,45 @@
    },
    {
     "type": "thinking",
-    "t": 29.22,
-    "text": "Analyzing SQL date boundary change to separate genuine revenue growth from end-exclusive defect impact."
+    "t": 33.38,
+    "text": "Identifying an off-by-one boundary error in SQL where inclusive date filter adds an excluded November 1 order to revenue totals."
    },
    {
     "type": "thinking",
-    "t": 29.22,
-    "text": "Quantifying the mixed change with dollar amounts and selecting evidence IDs for the correction SQL."
+    "t": 33.38,
+    "text": "Quantifying the mixed change as $100 genuine and $80 defect, and framing the SQL bound fix."
    },
    {
     "type": "diagnosis",
-    "t": 29.22,
+    "t": 33.38,
     "classification": "mixed_change",
-    "summary": "Reported revenue rose from $1200.00 (E1) to $1380.00 (E4), +$180.00. $100.00 is genuine growth from new paid October order 6 ($100.00 on 2026-10-25), while $80.00 is a defect from including paid order 4 dated 2026-11-01, which is outside the exclusive end date. Correct October revenue on current data is $1300.00.",
-    "root_cause": "Current SQL changed the end bound from < '2026-11-01' to <= '2026-11-01', incorrectly including November 1 order 4.",
+    "summary": "Reported Paid October revenue rose from $1,200.00 to $1,380.00. $100.00 is genuine growth from new paid October order 6 ($100.00 on 2026-10-25), raising correct total to $1,300.00. The remaining $80.00 is a defect from including order 4 ($80.00 on 2026-11-01), which is outside the October exclusive end date.",
+    "root_cause": "Current SQL changed the end bound to <= '2026-11-01', incorrectly including the November 1 order in October revenue.",
     "correction_sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund'"
    },
    {
     "type": "verified",
-    "t": 29.22,
+    "t": 33.38,
     "verified": true,
     "reason": "Complete order/value multiset matches the metric contract.",
     "evidence_id": "E10"
    },
    {
     "type": "review_start",
-    "t": 29.22,
+    "t": 33.38,
     "model": "muse-wonder-1.0"
    },
    {
     "type": "review",
-    "t": 36.19,
+    "t": 39.61,
     "verdict": "supported",
     "concerns": [],
-    "brief": "Correct Paid October revenue is $1,300.00, not the reported $1,380.00: $100.00 of the $180.00 increase over the prior $1,200.00 is genuine growth from order 6, while $80.00 is an overstatement from order 4 dated 2026-11-01. Restore the exclusive November 1 end bound (change `<='2026-11-01'` to `<'2026-11-01'`), which was independently verified at $1,300.00 with no missing or unexpected rows.",
+    "brief": "Paid October revenue correctly increased by $100.00, from $1,200.00 to $1,300.00, while the reported $1,380.00 includes an $80.00 error affecting 1 order. Use the verified corrected SQL and restate October revenue to $1,300.00.",
     "model": "muse-wonder-1.0"
    },
    {
     "type": "done",
-    "t": 36.19,
+    "t": 39.61,
     "classification": "mixed_change"
    }
   ],
@@ -896,10 +893,10 @@
    "model": "muse-wonder-1.0",
    "verdict": "supported",
    "concerns": [],
-   "stakeholder_brief": "Correct Paid October revenue is $1,300.00, not the reported $1,380.00: $100.00 of the $180.00 increase over the prior $1,200.00 is genuine growth from order 6, while $80.00 is an overstatement from order 4 dated 2026-11-01. Restore the exclusive November 1 end bound (change `<='2026-11-01'` to `<'2026-11-01'`), which was independently verified at $1,300.00 with no missing or unexpected rows.",
+   "stakeholder_brief": "Paid October revenue correctly increased by $100.00, from $1,200.00 to $1,300.00, while the reported $1,380.00 includes an $80.00 error affecting 1 order. Use the verified corrected SQL and restate October revenue to $1,300.00.",
    "usage": {
-    "input_tokens": 1629,
-    "output_tokens": 789
+    "input_tokens": 1881,
+    "output_tokens": 852
    }
   },
   "review_history": [
@@ -907,19 +904,19 @@
     "model": "muse-wonder-1.0",
     "verdict": "supported",
     "concerns": [],
-    "stakeholder_brief": "Correct Paid October revenue is $1,300.00, not the reported $1,380.00: $100.00 of the $180.00 increase over the prior $1,200.00 is genuine growth from order 6, while $80.00 is an overstatement from order 4 dated 2026-11-01. Restore the exclusive November 1 end bound (change `<='2026-11-01'` to `<'2026-11-01'`), which was independently verified at $1,300.00 with no missing or unexpected rows.",
+    "stakeholder_brief": "Paid October revenue correctly increased by $100.00, from $1,200.00 to $1,300.00, while the reported $1,380.00 includes an $80.00 error affecting 1 order. Use the verified corrected SQL and restate October revenue to $1,300.00.",
     "usage": {
-     "input_tokens": 1629,
-     "output_tokens": 789
+     "input_tokens": 1881,
+     "output_tokens": 852
     }
    }
   ],
   "clarified": false,
-  "elapsed_seconds": 36.188,
+  "elapsed_seconds": 39.61,
   "limitations": "Model interpretation; execution evidence and independent repair checks do not verify every prose claim. Local prototype.",
   "report_version": 1,
-  "generated_at": "2026-11-04T04:11:44.470480+00:00",
-  "input_sha256": "3d70716384131ff244496b43e0e5e37766b429a5996977ae5dd06423536b1399",
+  "generated_at": "2026-11-04T07:48:26.313809+00:00",
+  "input_sha256": "d15f114f4551f5e69275b819a9afbe4c8a9960daae465cbd95caf14b160aa9e8",
   "metric_contract": {
    "name": "Paid October revenue",
    "grain": "one row per order_id",
@@ -930,9 +927,10 @@
    "refund_policy": "exclude",
    "customer_coverage": "all orders, including unmatched customers"
   },
+  "domain": "revenue",
   "sql_engine": "SQLite",
   "application_version": "0.3.0",
-  "source_sha256": "928e5dacb796e9c1013894649463658e621456cd6c333af8f997f36d1bb71551",
+  "source_sha256": "80ae7f03b237f734e0a5fe07ed5f0ccca3507dceeb7429c04477eebad34b827e",
   "runtime": {
    "python": "3.11.5",
    "sqlite": "3.41.2"

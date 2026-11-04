@@ -10,18 +10,16 @@
   "model": "muse-spark-1.3",
   "model_classification": "mixed_change",
   "model_correction_sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund'",
-  "model_summary": "Paid October revenue should have grown $1200.00 to $1300.00 on new $100.00 order 6, but current SQL reported $700.00 after dropping $600.00 order 3 whose customer was deleted. The added INNER JOIN violates all-orders coverage.",
+  "model_summary": "Paid October revenue should have grown from $1200.00 (E1) to $1300.00 (E2) on genuine +$100.00 new order 6, but current SQL reports $700.00 (E4). The $600.00 shortfall is order 3 ($600.00, paid sale 2026-10-18) dropped by the new INNER JOIN because its customer_id 3 has no match in current customers (E5, E7, E9), violating 'all orders, including unmatched customers'.",
   "consistency_issues": [],
   "classification": "mixed_change",
-  "summary": "Paid October revenue should have grown $1200.00 to $1300.00 on new $100.00 order 6, but current SQL reported $700.00 after dropping $600.00 order 3 whose customer was deleted. The added INNER JOIN violates all-orders coverage.",
-  "root_cause": "Current SQL's INNER JOIN to customers drops eligible order 3 ($600) after its customer_id 3 was deleted from customers, violating the all-orders coverage requirement.",
+  "summary": "Paid October revenue should have grown from $1200.00 (E1) to $1300.00 (E2) on genuine +$100.00 new order 6, but current SQL reports $700.00 (E4). The $600.00 shortfall is order 3 ($600.00, paid sale 2026-10-18) dropped by the new INNER JOIN because its customer_id 3 has no match in current customers (E5, E7, E9), violating 'all orders, including unmatched customers'.",
+  "root_cause": "Current SQL added an INNER JOIN to customers which excludes eligible unmatched order 3 after customer 3 was deleted, violating the all-orders coverage requirement.",
   "evidence_ids": [
    "E2",
    "E4",
    "E5",
-   "E6",
    "E7",
-   "E8",
    "E9",
    "E10"
   ],
@@ -200,19 +198,37 @@
     "revenue_cents": 70000
    },
    {
-    "sql": "SELECT o.order_id, o.customer_id, o.revenue_cents, o.order_date FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund' AND c.customer_id IS NULL",
+    "sql": "SELECT o.order_id, o.customer_id, o.revenue_cents, c.customer_id AS c_match FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund'",
     "columns": [
      "order_id",
      "customer_id",
      "revenue_cents",
-     "order_date"
+     "c_match"
     ],
     "rows": [
+     [
+      1,
+      1,
+      20000,
+      1
+     ],
+     [
+      2,
+      2,
+      40000,
+      2
+     ],
      [
       3,
       3,
       60000,
-      "2026-10-18"
+      null
+     ],
+     [
+      6,
+      1,
+      10000,
+      1
      ]
     ],
     "truncated": false,
@@ -221,10 +237,10 @@
     "snapshot": "current"
    },
    {
-    "sql": "SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id ORDER BY customer_id",
+    "sql": "SELECT customer_id, COUNT(*) AS cnt FROM customers GROUP BY customer_id",
     "columns": [
      "customer_id",
-     "n"
+     "cnt"
     ],
     "rows": [
      [
@@ -242,54 +258,30 @@
     "snapshot": "current"
    },
    {
-    "sql": "SELECT order_id, customer_id, status, kind, order_date, revenue_cents FROM orders WHERE order_date >= '2026-10-01' AND order_date < '2026-11-01' ORDER BY order_id",
+    "sql": "SELECT order_id, customer_id, order_date, status, kind, revenue_cents FROM orders WHERE order_id IN (3, 6)",
     "columns": [
      "order_id",
      "customer_id",
+     "order_date",
      "status",
      "kind",
-     "order_date",
      "revenue_cents"
     ],
     "rows": [
      [
-      1,
-      1,
-      "paid",
-      "sale",
-      "2026-10-05",
-      20000
-     ],
-     [
-      2,
-      2,
-      "paid",
-      "sale",
-      "2026-10-12",
-      40000
-     ],
-     [
       3,
       3,
-      "paid",
-      "sale",
       "2026-10-18",
-      60000
-     ],
-     [
-      5,
-      2,
-      "pending",
+      "paid",
       "sale",
-      "2026-10-20",
-      18000
+      60000
      ],
      [
       6,
       1,
+      "2026-10-25",
       "paid",
       "sale",
-      "2026-10-25",
       10000
      ]
     ],
@@ -299,33 +291,21 @@
     "snapshot": "current"
    },
    {
-    "sql": "SELECT o.order_id, o.customer_id, o.revenue_cents, c.customer_id AS matched_id, c.region FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund' ORDER BY o.order_id",
+    "sql": "SELECT customer_id, region FROM customers ORDER BY customer_id",
     "columns": [
-     "order_id",
      "customer_id",
-     "revenue_cents",
-     "matched_id",
      "region"
     ],
     "rows": [
      [
       1,
-      1,
-      20000,
-      1,
       "West"
      ],
      [
       2,
-      2,
-      40000,
-      2,
       "East"
      ],
      [
-      3,
-      3,
-      60000,
       3,
       "North"
      ]
@@ -336,25 +316,19 @@
     "snapshot": "previous"
    },
    {
-    "sql": "SELECT o.order_id, o.customer_id, o.revenue_cents, c.customer_id AS matched_id FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.order_id IN (3, 6)",
+    "sql": "SELECT customer_id, region FROM customers ORDER BY customer_id",
     "columns": [
-     "order_id",
      "customer_id",
-     "revenue_cents",
-     "matched_id"
+     "region"
     ],
     "rows": [
      [
-      3,
-      3,
-      60000,
-      null
+      1,
+      "West"
      ],
      [
-      6,
-      1,
-      10000,
-      1
+      2,
+      "East"
      ]
     ],
     "truncated": false,
@@ -426,21 +400,39 @@
   "trace": [
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Test unmatched-customer hypothesis drops order\",\"snapshot\":\"current\",\"sql\":\"SELECT o.order_id, o.customer_id, o.revenue_cents, o.order_date FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund' AND c.customer_id IS NULL\"}",
+    "arguments": "{\"purpose\":\"test unmatched customers are dropped\",\"snapshot\":\"current\",\"sql\":\"SELECT o.order_id, o.customer_id, o.revenue_cents, c.customer_id AS c_match FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund'\"}",
     "result": {
-     "sql": "SELECT o.order_id, o.customer_id, o.revenue_cents, o.order_date FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund' AND c.customer_id IS NULL",
+     "sql": "SELECT o.order_id, o.customer_id, o.revenue_cents, c.customer_id AS c_match FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund'",
      "columns": [
       "order_id",
       "customer_id",
       "revenue_cents",
-      "order_date"
+      "c_match"
      ],
      "rows": [
+      [
+       1,
+       1,
+       20000,
+       1
+      ],
+      [
+       2,
+       2,
+       40000,
+       2
+      ],
       [
        3,
        3,
        60000,
-       "2026-10-18"
+       null
+      ],
+      [
+       6,
+       1,
+       10000,
+       1
       ]
      ],
      "truncated": false,
@@ -451,12 +443,12 @@
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Test duplicate customer keys cause fanout\",\"snapshot\":\"current\",\"sql\":\"SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id ORDER BY customer_id\"}",
+    "arguments": "{\"purpose\":\"test duplicate customer keys cause fanout\",\"snapshot\":\"current\",\"sql\":\"SELECT customer_id, COUNT(*) AS cnt FROM customers GROUP BY customer_id\"}",
     "result": {
-     "sql": "SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id ORDER BY customer_id",
+     "sql": "SELECT customer_id, COUNT(*) AS cnt FROM customers GROUP BY customer_id",
      "columns": [
       "customer_id",
-      "n"
+      "cnt"
      ],
      "rows": [
       [
@@ -476,56 +468,32 @@
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Test date status refund boundaries in October\",\"snapshot\":\"current\",\"sql\":\"SELECT order_id, customer_id, status, kind, order_date, revenue_cents FROM orders WHERE order_date >= '2026-10-01' AND order_date < '2026-11-01' ORDER BY order_id\"}",
+    "arguments": "{\"purpose\":\"test status refund date explains drop\",\"snapshot\":\"current\",\"sql\":\"SELECT order_id, customer_id, order_date, status, kind, revenue_cents FROM orders WHERE order_id IN (3, 6)\"}",
     "result": {
-     "sql": "SELECT order_id, customer_id, status, kind, order_date, revenue_cents FROM orders WHERE order_date >= '2026-10-01' AND order_date < '2026-11-01' ORDER BY order_id",
+     "sql": "SELECT order_id, customer_id, order_date, status, kind, revenue_cents FROM orders WHERE order_id IN (3, 6)",
      "columns": [
       "order_id",
       "customer_id",
+      "order_date",
       "status",
       "kind",
-      "order_date",
       "revenue_cents"
      ],
      "rows": [
       [
-       1,
-       1,
-       "paid",
-       "sale",
-       "2026-10-05",
-       20000
-      ],
-      [
-       2,
-       2,
-       "paid",
-       "sale",
-       "2026-10-12",
-       40000
-      ],
-      [
        3,
        3,
-       "paid",
-       "sale",
        "2026-10-18",
-       60000
-      ],
-      [
-       5,
-       2,
-       "pending",
+       "paid",
        "sale",
-       "2026-10-20",
-       18000
+       60000
       ],
       [
        6,
        1,
+       "2026-10-25",
        "paid",
        "sale",
-       "2026-10-25",
        10000
       ]
      ],
@@ -537,35 +505,23 @@
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Test prior match for order 3 customer\",\"snapshot\":\"previous\",\"sql\":\"SELECT o.order_id, o.customer_id, o.revenue_cents, c.customer_id AS matched_id, c.region FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund' ORDER BY o.order_id\"}",
+    "arguments": "{\"purpose\":\"test customer deletion between snapshots\",\"snapshot\":\"previous\",\"sql\":\"SELECT customer_id, region FROM customers ORDER BY customer_id\"}",
     "result": {
-     "sql": "SELECT o.order_id, o.customer_id, o.revenue_cents, c.customer_id AS matched_id, c.region FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund' ORDER BY o.order_id",
+     "sql": "SELECT customer_id, region FROM customers ORDER BY customer_id",
      "columns": [
-      "order_id",
       "customer_id",
-      "revenue_cents",
-      "matched_id",
       "region"
      ],
      "rows": [
       [
        1,
-       1,
-       20000,
-       1,
        "West"
       ],
       [
        2,
-       2,
-       40000,
-       2,
        "East"
       ],
       [
-       3,
-       3,
-       60000,
        3,
        "North"
       ]
@@ -578,27 +534,21 @@
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Test new order 6 genuine growth details\",\"snapshot\":\"current\",\"sql\":\"SELECT o.order_id, o.customer_id, o.revenue_cents, c.customer_id AS matched_id FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.order_id IN (3, 6)\"}",
+    "arguments": "{\"purpose\":\"confirm customer 3 deleted in current\",\"snapshot\":\"current\",\"sql\":\"SELECT customer_id, region FROM customers ORDER BY customer_id\"}",
     "result": {
-     "sql": "SELECT o.order_id, o.customer_id, o.revenue_cents, c.customer_id AS matched_id FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.order_id IN (3, 6)",
+     "sql": "SELECT customer_id, region FROM customers ORDER BY customer_id",
      "columns": [
-      "order_id",
       "customer_id",
-      "revenue_cents",
-      "matched_id"
+      "region"
      ],
      "rows": [
       [
-       3,
-       3,
-       60000,
-       null
+       1,
+       "West"
       ],
       [
-       6,
-       1,
-       10000,
-       1
+       2,
+       "East"
       ]
      ],
      "truncated": false,
@@ -609,7 +559,7 @@
    },
    {
     "tool": "verify_correction",
-    "arguments": "{\"purpose\":\"Verify join removal restores contract total\",\"sql\":\"SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund'\"}",
+    "arguments": "{\"purpose\":\"check corrected SQL matches contract reference\",\"sql\":\"SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund'\"}",
     "result": {
      "verified": true,
      "evidence_id": "E10",
@@ -624,8 +574,8 @@
    }
   ],
   "usage": {
-   "input_tokens": 12143,
-   "output_tokens": 3808,
+   "input_tokens": 11241,
+   "output_tokens": 4680,
    "model_requests": 3,
    "tool_calls": 6,
    "review_requests": 1
@@ -677,48 +627,66 @@
    },
    {
     "type": "thinking",
-    "t": 12.06,
-    "text": "Analyzing SQL join behavior and row loss between snapshots to determine if movement is supported."
+    "t": 13.36,
+    "text": "Analyzing SQL changes against the revenue metric contract and identifying an inner join that breaks customer coverage."
    },
    {
     "type": "thinking",
-    "t": 12.06,
-    "text": "Designing parallel diagnostic queries to test join cardinality and unmatched rows."
+    "t": 13.36,
+    "text": "Formulating targeted diagnostic queries to check join cardinality, unmatched rows, and key duplicates without replaying."
    },
    {
     "type": "thinking",
-    "t": 12.06,
-    "text": "Defining parallel snapshot queries to isolate unmatched orders, duplicates, and date filters."
+    "t": 13.36,
+    "text": "Designing parallel diagnostic queries with distinct hypotheses and extra columns to avoid replaying identical SQL."
    },
    {
     "type": "tool_call",
-    "t": 12.06,
+    "t": 13.36,
     "tool": "query_snapshot",
-    "purpose": "Test unmatched-customer hypothesis drops order",
+    "purpose": "test unmatched customers are dropped",
     "snapshot": "current",
-    "sql": "SELECT o.order_id, o.customer_id, o.revenue_cents, o.order_date FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund' AND c.customer_id IS NULL",
+    "sql": "SELECT o.order_id, o.customer_id, o.revenue_cents, c.customer_id AS c_match FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund'",
     "question": null,
-    "call_id": "call_01a1a4c0d15570a284b6c3dd22db9018"
+    "call_id": "call_01a1a58741d677aeb95d776ed3245ca3"
    },
    {
     "type": "tool_result",
-    "t": 12.06,
+    "t": 13.36,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4c0d15570a284b6c3dd22db9018",
+    "call_id": "call_01a1a58741d677aeb95d776ed3245ca3",
     "result": {
-     "sql": "SELECT o.order_id, o.customer_id, o.revenue_cents, o.order_date FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund' AND c.customer_id IS NULL",
+     "sql": "SELECT o.order_id, o.customer_id, o.revenue_cents, c.customer_id AS c_match FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund'",
      "columns": [
       "order_id",
       "customer_id",
       "revenue_cents",
-      "order_date"
+      "c_match"
      ],
      "rows": [
+      [
+       1,
+       1,
+       20000,
+       1
+      ],
+      [
+       2,
+       2,
+       40000,
+       2
+      ],
       [
        3,
        3,
        60000,
-       "2026-10-18"
+       null
+      ],
+      [
+       6,
+       1,
+       10000,
+       1
       ]
      ],
      "truncated": false,
@@ -728,24 +696,24 @@
    },
    {
     "type": "tool_call",
-    "t": 12.06,
+    "t": 13.36,
     "tool": "query_snapshot",
-    "purpose": "Test duplicate customer keys cause fanout",
+    "purpose": "test duplicate customer keys cause fanout",
     "snapshot": "current",
-    "sql": "SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id ORDER BY customer_id",
+    "sql": "SELECT customer_id, COUNT(*) AS cnt FROM customers GROUP BY customer_id",
     "question": null,
-    "call_id": "call_01a1a4c0d4317296a2a469f2449378ff"
+    "call_id": "call_01a1a5874591756493c759697f9e4526"
    },
    {
     "type": "tool_result",
-    "t": 12.06,
+    "t": 13.36,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4c0d4317296a2a469f2449378ff",
+    "call_id": "call_01a1a5874591756493c759697f9e4526",
     "result": {
-     "sql": "SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id ORDER BY customer_id",
+     "sql": "SELECT customer_id, COUNT(*) AS cnt FROM customers GROUP BY customer_id",
      "columns": [
       "customer_id",
-      "n"
+      "cnt"
      ],
      "rows": [
       [
@@ -764,68 +732,44 @@
    },
    {
     "type": "tool_call",
-    "t": 12.08,
+    "t": 13.36,
     "tool": "query_snapshot",
-    "purpose": "Test date status refund boundaries in October",
+    "purpose": "test status refund date explains drop",
     "snapshot": "current",
-    "sql": "SELECT order_id, customer_id, status, kind, order_date, revenue_cents FROM orders WHERE order_date >= '2026-10-01' AND order_date < '2026-11-01' ORDER BY order_id",
+    "sql": "SELECT order_id, customer_id, order_date, status, kind, revenue_cents FROM orders WHERE order_id IN (3, 6)",
     "question": null,
-    "call_id": "call_01a1a4c0d5cf7332977b7f3ff4f0fd99"
+    "call_id": "call_01a1a587479475bbaf2e60060fde67b2"
    },
    {
     "type": "tool_result",
-    "t": 12.08,
+    "t": 13.36,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4c0d5cf7332977b7f3ff4f0fd99",
+    "call_id": "call_01a1a587479475bbaf2e60060fde67b2",
     "result": {
-     "sql": "SELECT order_id, customer_id, status, kind, order_date, revenue_cents FROM orders WHERE order_date >= '2026-10-01' AND order_date < '2026-11-01' ORDER BY order_id",
+     "sql": "SELECT order_id, customer_id, order_date, status, kind, revenue_cents FROM orders WHERE order_id IN (3, 6)",
      "columns": [
       "order_id",
       "customer_id",
+      "order_date",
       "status",
       "kind",
-      "order_date",
       "revenue_cents"
      ],
      "rows": [
       [
-       1,
-       1,
-       "paid",
-       "sale",
-       "2026-10-05",
-       20000
-      ],
-      [
-       2,
-       2,
-       "paid",
-       "sale",
-       "2026-10-12",
-       40000
-      ],
-      [
        3,
        3,
-       "paid",
-       "sale",
        "2026-10-18",
-       60000
-      ],
-      [
-       5,
-       2,
-       "pending",
+       "paid",
        "sale",
-       "2026-10-20",
-       18000
+       60000
       ],
       [
        6,
        1,
+       "2026-10-25",
        "paid",
        "sale",
-       "2026-10-25",
        10000
       ]
      ],
@@ -836,47 +780,35 @@
    },
    {
     "type": "tool_call",
-    "t": 12.08,
+    "t": 13.36,
     "tool": "query_snapshot",
-    "purpose": "Test prior match for order 3 customer",
+    "purpose": "test customer deletion between snapshots",
     "snapshot": "previous",
-    "sql": "SELECT o.order_id, o.customer_id, o.revenue_cents, c.customer_id AS matched_id, c.region FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund' ORDER BY o.order_id",
+    "sql": "SELECT customer_id, region FROM customers ORDER BY customer_id",
     "question": null,
-    "call_id": "call_01a1a4c0d80874abbbe4ea5f23377501"
+    "call_id": "call_01a1a5874a2375eb9dd70d6556616583"
    },
    {
     "type": "tool_result",
-    "t": 12.08,
+    "t": 13.36,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4c0d80874abbbe4ea5f23377501",
+    "call_id": "call_01a1a5874a2375eb9dd70d6556616583",
     "result": {
-     "sql": "SELECT o.order_id, o.customer_id, o.revenue_cents, c.customer_id AS matched_id, c.region FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund' ORDER BY o.order_id",
+     "sql": "SELECT customer_id, region FROM customers ORDER BY customer_id",
      "columns": [
-      "order_id",
       "customer_id",
-      "revenue_cents",
-      "matched_id",
       "region"
      ],
      "rows": [
       [
        1,
-       1,
-       20000,
-       1,
        "West"
       ],
       [
        2,
-       2,
-       40000,
-       2,
        "East"
       ],
       [
-       3,
-       3,
-       60000,
        3,
        "North"
       ]
@@ -887,40 +819,44 @@
     }
    },
    {
+    "type": "thinking",
+    "t": 22.27,
+    "text": "Verifying current customer coverage for missing order and checking correction against metric contract."
+   },
+   {
+    "type": "thinking",
+    "t": 22.27,
+    "text": "Confirming the SQL matches the contract and isolating the defect from genuine data growth."
+   },
+   {
     "type": "tool_call",
-    "t": 12.08,
+    "t": 22.27,
     "tool": "query_snapshot",
-    "purpose": "Test new order 6 genuine growth details",
+    "purpose": "confirm customer 3 deleted in current",
     "snapshot": "current",
-    "sql": "SELECT o.order_id, o.customer_id, o.revenue_cents, c.customer_id AS matched_id FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.order_id IN (3, 6)",
+    "sql": "SELECT customer_id, region FROM customers ORDER BY customer_id",
     "question": null,
-    "call_id": "call_01a1a4c0dace722a9d49a7462c6742cf"
+    "call_id": "call_01a1a58766f571eabca7e0db8f4625a8"
    },
    {
     "type": "tool_result",
-    "t": 12.08,
+    "t": 22.27,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4c0dace722a9d49a7462c6742cf",
+    "call_id": "call_01a1a58766f571eabca7e0db8f4625a8",
     "result": {
-     "sql": "SELECT o.order_id, o.customer_id, o.revenue_cents, c.customer_id AS matched_id FROM orders o LEFT JOIN customers c USING (customer_id) WHERE o.order_id IN (3, 6)",
+     "sql": "SELECT customer_id, region FROM customers ORDER BY customer_id",
      "columns": [
-      "order_id",
       "customer_id",
-      "revenue_cents",
-      "matched_id"
+      "region"
      ],
      "rows": [
       [
-       3,
-       3,
-       60000,
-       null
+       1,
+       "West"
       ],
       [
-       6,
-       1,
-       10000,
-       1
+       2,
+       "East"
       ]
      ],
      "truncated": false,
@@ -929,30 +865,20 @@
     }
    },
    {
-    "type": "thinking",
-    "t": 23.0,
-    "text": "Analyzing SQL join change that reduced revenue by excluding unmatched customers and comparing snapshots to isolate genuine growth."
-   },
-   {
-    "type": "thinking",
-    "t": 23.0,
-    "text": "Classifying the change as mixed and drafting the correction SQL before verification."
-   },
-   {
     "type": "tool_call",
-    "t": 23.0,
+    "t": 22.27,
     "tool": "verify_correction",
-    "purpose": "Verify join removal restores contract total",
+    "purpose": "check corrected SQL matches contract reference",
     "snapshot": null,
     "sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund'",
     "question": null,
-    "call_id": "call_01a1a4c0fe067349a0c7cb82ebf0fb1d"
+    "call_id": "call_01a1a58768c8704d9444d751cae78bf8"
    },
    {
     "type": "tool_result",
-    "t": 23.0,
+    "t": 22.27,
     "tool": "verify_correction",
-    "call_id": "call_01a1a4c0fe067349a0c7cb82ebf0fb1d",
+    "call_id": "call_01a1a58768c8704d9444d751cae78bf8",
     "result": {
      "verified": true,
      "evidence_id": "E10",
@@ -967,76 +893,87 @@
    },
    {
     "type": "thinking",
-    "t": 30.77,
-    "text": "Analyzing SQL join behavior to distinguish genuine data growth from calculation defects due to dropped unmatched customers."
+    "t": 38.08,
+    "text": "Comparing SQL against the metric contract and identifying the inner join as the cause of the coverage violation."
    },
    {
     "type": "thinking",
-    "t": 30.77,
-    "text": "Drafting correction SQL and JSON output with dollar amounts, root cause, and evidence IDs."
+    "t": 38.08,
+    "text": "Classifying the regression as mixed change and selecting evidence IDs for the correction SQL."
+   },
+   {
+    "type": "thinking",
+    "t": 38.08,
+    "text": "Formulating the correction SQL and assembling the required evidence ID list."
    },
    {
     "type": "diagnosis",
-    "t": 30.77,
+    "t": 38.08,
     "classification": "mixed_change",
-    "summary": "Paid October revenue should have grown $1200.00 to $1300.00 on new $100.00 order 6, but current SQL reported $700.00 after dropping $600.00 order 3 whose customer was deleted. The added INNER JOIN violates all-orders coverage.",
-    "root_cause": "Current SQL's INNER JOIN to customers drops eligible order 3 ($600) after its customer_id 3 was deleted from customers, violating the all-orders coverage requirement.",
+    "summary": "Paid October revenue should have grown from $1200.00 (E1) to $1300.00 (E2) on genuine +$100.00 new order 6, but current SQL reports $700.00 (E4). The $600.00 shortfall is order 3 ($600.00, paid sale 2026-10-18) dropped by the new INNER JOIN because its customer_id 3 has no match in current customers (E5, E7, E9), violating 'all orders, including unmatched customers'.",
+    "root_cause": "Current SQL added an INNER JOIN to customers which excludes eligible unmatched order 3 after customer 3 was deleted, violating the all-orders coverage requirement.",
     "correction_sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund'"
    },
    {
     "type": "verified",
-    "t": 30.77,
+    "t": 38.08,
     "verified": true,
     "reason": "Complete order/value multiset matches the metric contract.",
     "evidence_id": "E11"
    },
    {
     "type": "review_start",
-    "t": 30.77,
+    "t": 38.08,
     "model": "muse-wonder-1.0"
    },
    {
     "type": "review",
-    "t": 38.62,
+    "t": 49.36,
     "verdict": "supported",
-    "concerns": [],
-    "brief": "Paid October revenue should be $1,300.00, not the $700.00 reported, because the new INNER JOIN dropped eligible order 3 worth $600.00 while genuine revenue grew $100.00 from $1,200.00. Restore the corrected SQL without the customers join and restate October revenue at $1,300.00.",
+    "concerns": [
+     "Minor: None. The mixed-change classification aligns with the four-way replay and reconciliation: genuine underlying growth of $100.00 plus a current-SQL error of -$600.00. The affected order, unmatched-customer cause, contract violation, and corrected SQL are all supported by E2, E4, E5, E7, and E9, and repair verification passed at $1,300.00 with no missing or unexpected rows."
+    ],
+    "brief": "Paid October revenue should be $1,300.00, up $100.00 from $1,200.00, but the current SQL understates it by $600.00 because the new INNER JOIN dropped one eligible unmatched-customer order. Restore the verified correction SQL (remove the INNER JOIN) and restate the metric at $1,300.00.",
     "model": "muse-wonder-1.0"
    },
    {
     "type": "done",
-    "t": 38.62,
+    "t": 49.36,
     "classification": "mixed_change"
    }
   ],
   "review": {
    "model": "muse-wonder-1.0",
    "verdict": "supported",
-   "concerns": [],
-   "stakeholder_brief": "Paid October revenue should be $1,300.00, not the $700.00 reported, because the new INNER JOIN dropped eligible order 3 worth $600.00 while genuine revenue grew $100.00 from $1,200.00. Restore the corrected SQL without the customers join and restate October revenue at $1,300.00.",
+   "concerns": [
+    "Minor: None. The mixed-change classification aligns with the four-way replay and reconciliation: genuine underlying growth of $100.00 plus a current-SQL error of -$600.00. The affected order, unmatched-customer cause, contract violation, and corrected SQL are all supported by E2, E4, E5, E7, and E9, and repair verification passed at $1,300.00 with no missing or unexpected rows."
+   ],
+   "stakeholder_brief": "Paid October revenue should be $1,300.00, up $100.00 from $1,200.00, but the current SQL understates it by $600.00 because the new INNER JOIN dropped one eligible unmatched-customer order. Restore the verified correction SQL (remove the INNER JOIN) and restate the metric at $1,300.00.",
    "usage": {
-    "input_tokens": 1906,
-    "output_tokens": 824
+    "input_tokens": 1646,
+    "output_tokens": 1402
    }
   },
   "review_history": [
    {
     "model": "muse-wonder-1.0",
     "verdict": "supported",
-    "concerns": [],
-    "stakeholder_brief": "Paid October revenue should be $1,300.00, not the $700.00 reported, because the new INNER JOIN dropped eligible order 3 worth $600.00 while genuine revenue grew $100.00 from $1,200.00. Restore the corrected SQL without the customers join and restate October revenue at $1,300.00.",
+    "concerns": [
+     "Minor: None. The mixed-change classification aligns with the four-way replay and reconciliation: genuine underlying growth of $100.00 plus a current-SQL error of -$600.00. The affected order, unmatched-customer cause, contract violation, and corrected SQL are all supported by E2, E4, E5, E7, and E9, and repair verification passed at $1,300.00 with no missing or unexpected rows."
+    ],
+    "stakeholder_brief": "Paid October revenue should be $1,300.00, up $100.00 from $1,200.00, but the current SQL understates it by $600.00 because the new INNER JOIN dropped one eligible unmatched-customer order. Restore the verified correction SQL (remove the INNER JOIN) and restate the metric at $1,300.00.",
     "usage": {
-     "input_tokens": 1906,
-     "output_tokens": 824
+     "input_tokens": 1646,
+     "output_tokens": 1402
     }
    }
   ],
   "clarified": false,
-  "elapsed_seconds": 38.625,
+  "elapsed_seconds": 49.359,
   "limitations": "Model interpretation; execution evidence and independent repair checks do not verify every prose claim. Local prototype.",
   "report_version": 1,
-  "generated_at": "2026-11-04T04:11:31.862325+00:00",
-  "input_sha256": "454376fdaa5bb8d83ea393390254024cda5c5d55e7e17def20a895af2ec8be7b",
+  "generated_at": "2026-11-04T07:48:25.777058+00:00",
+  "input_sha256": "34e36c12be2f4ee85cc332bfafd2ca969153d3c76e0ea7453df06009d65298dc",
   "metric_contract": {
    "name": "Paid October revenue",
    "grain": "one row per order_id",
@@ -1047,9 +984,10 @@
    "refund_policy": "exclude",
    "customer_coverage": "all orders, including unmatched customers"
   },
+  "domain": "revenue",
   "sql_engine": "SQLite",
   "application_version": "0.3.0",
-  "source_sha256": "928e5dacb796e9c1013894649463658e621456cd6c333af8f997f36d1bb71551",
+  "source_sha256": "80ae7f03b237f734e0a5fe07ed5f0ccca3507dceeb7429c04477eebad34b827e",
   "runtime": {
    "python": "3.11.5",
    "sqlite": "3.41.2"

@@ -63,7 +63,8 @@ def main(argv=None):
             from dotenv import load_dotenv
             load_dotenv()
         if args.mode == "meta":
-            report = investigate_meta(incident, review=args.review, on_event=_print_event)
+            from .openweight import make_agent_client
+            report = investigate_meta(incident, client=make_agent_client(), review=args.review, on_event=_print_event)
             report.pop("resume_state", None)
         else:
             report = {"offline": offline_walkthrough, "baseline": investigate_baseline}[args.mode](incident)

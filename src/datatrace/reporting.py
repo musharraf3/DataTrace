@@ -57,6 +57,7 @@ def enrich_report(report, incident):
     output["generated_at"] = datetime.now(timezone.utc).isoformat()
     output["input_sha256"] = fingerprint(incident)
     output["metric_contract"] = incident.contract.copy()
+    output["domain"] = getattr(incident, "domain", "revenue")
     output["sql_engine"] = "SQLite"
     output["application_version"] = __version__
     output["source_sha256"] = source_fingerprint()

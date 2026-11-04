@@ -20,8 +20,11 @@ from .cases import make_case
 from .inputs import InputError, bundle_dict, fingerprint, load_bundle, load_csv, snapshot_csv, validate_incident
 from .investigator import Investigation, offline_walkthrough
 from .meta import MetaAPIError, MetaClient, investigate_meta
+from .openweight import make_agent_client
 from .reporting import list_price_usd, markdown_report
 from .runner import QueryRejected
+from .domains import get as get_domain
+from .healthcare import make_claims_case
 from .scenarios import make_realistic_case
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -29,10 +32,15 @@ EXAMPLES = ROOT / "examples"
 RECORDED = EXAMPLES / "recorded"
 RESULTS = ROOT / "results"
 
-LIVE, RECORDED_MODE, OFFLINE = "Live Meta agent", "Recorded live run", "Offline checks (no AI)"
+LIVE, RECORDED_MODE, OFFLINE = "Live Meta agent", "Recorded live run", "Verifier only (no AI)"
 
 SCENARIO_CHOICES = [
-    ("★ Black Friday + CRM migration · 4,122 orders", ("realistic", "crm_migration")),
+    ("★ Medicare claims: eligibility rebuild · CMS DE-SynPUF", ("synpuf", "eligibility_spans")),
+    ("Claims: service-month cutoff edit · CMS DE-SynPUF", ("synpuf", "service_date_cutoff")),
+    ("Claims: pending counted as paid · CMS DE-SynPUF", ("synpuf", "pending_counted")),
+    ("Claims: genuine run-out · CMS DE-SynPUF", ("synpuf", "runout_growth")),
+    ("Claims: reversal treatment undefined · CMS DE-SynPUF", ("synpuf", "reversal_policy")),
+    ("★ Retail: Black Friday + CRM migration · 4,122 orders", ("realistic", "crm_migration")),
     ("Month-end cutoff edit · 4,122 orders", ("realistic", "cutoff_change")),
     ("Pending orders counted as paid · 4,122 orders", ("realistic", "status_filter")),
     ("Genuine holiday surge · 4,122 orders", ("realistic", "holiday_growth")),
@@ -134,6 +142,8 @@ def _example_zip(case):
 
 @st.cache_data(show_spinner=False)
 def _cached_case(kind, name):
+    if kind == "synpuf":
+        return make_claims_case(name)
     return make_realistic_case(name) if kind == "realistic" else make_case(name, 1)
 
 
@@ -149,17 +159,20 @@ def _inputs(case, source):
             return None
         case = load_bundle(uploaded.getvalue())
     elif source == "Four CSV snapshots":
-        st.caption("Use the template CSV headers. Orders need integer USD cents and unique order IDs; duplicate customer rows are allowed so the agent can detect them.")
+        dom = get_domain(case.domain)
+        st.caption(f"Use the template CSV headers ({', '.join(dom.fact_columns)} and {', '.join(dom.dim_columns)}). "
+                   f"Amounts are integer USD cents and {dom.key} values are unique; duplicate {dom.member} rows are allowed so the agent can detect them.")
         snapshots, ready = {}, True
         left, right = st.columns(2)
         for snapshot, column in [("previous", left), ("current", right)]:
             snapshots[snapshot] = {}
             for table in ["orders", "customers"]:
-                upload = column.file_uploader(f"{snapshot.title()} {table} CSV", type=["csv"], key=f"{snapshot}_{table}")
+                shown = dom.fact if table == "orders" else dom.dim
+                upload = column.file_uploader(f"{snapshot.title()} {shown} CSV", type=["csv"], key=f"{snapshot}_{table}")
                 if upload is None:
                     ready = False
                 else:
-                    snapshots[snapshot][table] = load_csv(upload.getvalue(), table)
+                    snapshots[snapshot][table] = load_csv(upload.getvalue(), table, dom)
         if not ready:
             st.info("Upload all four snapshots to begin.")
             return None
@@ -174,7 +187,9 @@ def _inputs(case, source):
         policy = c.selectbox("Refund treatment", choices, index=choices.index(case.contract["refund_policy"] or "unknown"), key=f"policy-{seed}")
         statuses = ["paid", "pending", "cancelled"]
         status = d.selectbox("Eligible order status", statuses, index=statuses.index(case.contract["status"]), key=f"status-{seed}")
-        st.caption("Supported contract: one row per eligible order_id, integer USD cents, all eligible orders including unmatched customers. Start inclusive, end exclusive.")
+        dom = get_domain(case.domain)
+        st.caption(f"Supported contract: one row per eligible {dom.key}, integer USD cents, all eligible {dom.items} "
+                   f"including unmatched {dom.member_noun}s. Start inclusive, end exclusive. Refund treatment covers {dom.reversal_noun}.")
         before, after = st.columns(2)
         previous_sql = before.text_area("Previous SQL", case.previous_sql, height=170, key=f"prior-{seed}", max_chars=10000)
         current_sql = after.text_area("Current SQL", case.current_sql, height=170, key=f"current-{seed}", max_chars=10000)
@@ -185,10 +200,14 @@ def _inputs(case, source):
     with st.expander("Inspect input snapshots"):
         for snapshot in ["previous", "current"]:
             left, right = st.columns(2)
+            dom = get_domain(case.domain)
             for table, column in [("orders", left), ("customers", right)]:
-                headers = ["order_id", "customer_id", "order_date", "status", "kind", "revenue_cents"] if table == "orders" else ["customer_id", "region"]
-                column.caption(f"{snapshot.title()} {table} · {len(case.snapshots[snapshot][table]):,} rows (first 100 shown)")
-                column.dataframe(pd.DataFrame(case.snapshots[snapshot][table][:100], columns=headers),
+                headers = dom.fact_columns if table == "orders" else dom.dim_columns
+                rows = case.snapshots[snapshot][table][:100]
+                rows = [dom.translate_fact(r) for r in rows] if table == "orders" else rows
+                shown = dom.fact if table == "orders" else dom.dim
+                column.caption(f"{snapshot.title()} {shown} · {len(case.snapshots[snapshot][table]):,} rows (first 100 shown)")
+                column.dataframe(pd.DataFrame(rows, columns=headers),
                                  width="stretch", hide_index=True, height=180)
     return case
 
@@ -210,14 +229,16 @@ def _intake(key_ready, scenario_key):
             uploaded = st.file_uploader("…or upload a WAV voice note", type=["wav"], key="voice_upload")
             if uploaded:
                 audio = uploaded.getvalue()
-            if st.checkbox("Use the sample voice note from finance", key="sample_voice"):
-                audio = (EXAMPLES / "voice_note.wav").read_bytes()
+            claims = scenario_key.startswith("synpuf")
+            if st.checkbox("Use the sample voice note from " + ("actuarial" if claims else "finance"), key="sample_voice"):
+                audio = (EXAMPLES / ("claims_voice_note.wav" if claims else "voice_note.wav")).read_bytes()
                 st.audio(audio, format="audio/wav")
         with col_b:
             shot = st.file_uploader("Dashboard screenshot", type=["png", "jpg", "jpeg"], key="shot")
             image, image_type = (shot.getvalue(), shot.type) if shot else (None, "image/png")
             if st.checkbox("Use the sample dashboard screenshot", key="sample_shot"):
-                image, image_type = (EXAMPLES / "dashboard_screenshot.png").read_bytes(), "image/png"
+                shot_name = "claims_dashboard_screenshot.png" if scenario_key.startswith("synpuf") else "dashboard_screenshot.png"
+                image, image_type = (EXAMPLES / shot_name).read_bytes(), "image/png"
             if image:
                 st.image(image, width="stretch")
         message = st.text_area("Message (optional)", key="intake_message", height=80,
@@ -260,8 +281,8 @@ def _event(container, event):
             st.markdown(f"{stamp} 🧭 **Replayed both SQL versions on both snapshots** · agent `{event.get('model')}` · raw rows stay local")
             replay = pd.DataFrame(event.get("replay", []))
             if not replay.empty:
-                replay["revenue_usd"] = replay["revenue_cents"].map(lambda c: f"${c / 100:,.2f}")
-                st.dataframe(replay[["sql_version", "snapshot", "revenue_usd", "row_count", "evidence_id"]],
+                replay["amount_usd"] = replay["revenue_cents"].map(lambda c: f"${c / 100:,.2f}")
+                st.dataframe(replay[["sql_version", "snapshot", "amount_usd", "row_count", "evidence_id"]],
                              hide_index=True, width="stretch")
         elif kind == "thinking":
             st.caption(f"💭 {_md(event['text'][:400])}")
@@ -307,7 +328,7 @@ def _event(container, event):
         elif kind == "clarification":
             st.info(f"{stamp} ❓ {_md(event['question'])}")
         elif kind == "clarified":
-            st.markdown(f"{stamp} ✅ **Analyst answered:** {event['answer']} refunds · investigation resumes")
+            st.markdown(f"{stamp} ✅ **Analyst answered:** {event['answer']} · investigation resumes")
 
 
 def _render_timeline(events):
@@ -322,7 +343,7 @@ def _usd(cents):
     return f"${cents / 100:,.2f}"
 
 
-def _revenue_bridge(previous_cents, current_cents, reconciliation):
+def _revenue_bridge(previous_cents, current_cents, reconciliation, money_label="Revenue (USD)"):
     steps = [("Prior reported", 0, previous_cents, "Reported total")]
     prior_expected = reconciliation["previous_expected_cents"]
     current_expected = reconciliation["current_expected_cents"]
@@ -340,7 +361,7 @@ def _revenue_bridge(previous_cents, current_cents, reconciliation):
     axis = alt.X("Step:N", sort=frame["Step"].tolist(), title=None, axis=alt.Axis(labelAngle=0, labelLimit=140))
     base = alt.Chart(frame).encode(x=axis)
     bars = base.mark_bar(size=58, cornerRadius=3).encode(
-        y=alt.Y("Start:Q", title="Revenue (USD)", axis=alt.Axis(format="$,.0f")), y2="End:Q",
+        y=alt.Y("Start:Q", title=money_label, axis=alt.Axis(format="$,.0f")), y2="End:Q",
         color=alt.Color("Type:N", scale=alt.Scale(domain=["Reported total", "Genuine movement", "Reporting error"],
                                                   range=["#3656ae", "#0f8179", "#c05e29"]),
                         legend=alt.Legend(title=None, orient="bottom")),
@@ -356,7 +377,7 @@ def _verdict_card(report):
     headline = ""
     if reconciliation and replay:
         moved = replay[3]["revenue_cents"] - replay[0]["revenue_cents"]
-        headline = (f"Reported revenue moved <b>{_usd(moved)}</b>: <b>{_usd(reconciliation['underlying_change_cents'])}</b> is real, "
+        headline = (f"Reported {get_domain(report.get('domain')).metric_noun} moved <b>{_usd(moved)}</b>: <b>{_usd(reconciliation['underlying_change_cents'])}</b> is real, "
                     f"<b>{_usd(reconciliation['current_error_cents'])}</b> is a reporting error.")
     review = report.get("review")
     review_html = ""
@@ -380,6 +401,7 @@ def _verdict_card(report):
 
 
 def _result(case, report, context_key):
+    dom = get_domain(report.get("domain") or case.domain)
     replay = report["replay"]
     previous_cents, current_cents = replay[0]["revenue_cents"], replay[3]["revenue_cents"]
     reconciliation = report.get("reconciliation")
@@ -387,6 +409,11 @@ def _result(case, report, context_key):
         st.warning("The live Meta agent could not finish (" + report["fallback_reason"][:200] +
                    "). Showing the deterministic contract checks instead; no AI diagnosis is included.")
     _verdict_card(report)
+    if report["mode"] == "offline_scripted":
+        st.info("**Verifier only.** This deterministic check can tell you *that* the number breaks the metric contract and "
+                "by how much. It cannot tell you *why* (which join, which customers or members, which filter), cannot "
+                "repair your SQL while keeping its intent, and cannot ask you about a missing definition. Switch to the "
+                "**Meta agent** for the investigation; this verifier is the referee that checks the agent's fix.")
     validation = report.get("validation") or {}
     a, b, c, d = st.columns(4)
     a.metric("Reported change", f"{(current_cents - previous_cents) / 100:+,.0f} USD")
@@ -397,21 +424,27 @@ def _result(case, report, context_key):
         b.metric("Real change", f"{reconciliation['underlying_change_cents'] / 100:+,.0f} USD")
         c.metric("Reporting error", f"{reconciliation['current_error_cents'] / 100:+,.0f} USD")
     if validation.get("verified") and report.get("correction_sql"):
-        d.metric("Verified corrected revenue", f"${validation['actual_revenue_cents'] / 100:,.0f}")
+        d.metric(f"Verified corrected {dom.metric_noun}", f"${validation['actual_revenue_cents'] / 100:,.0f}")
     elif reconciliation and reconciliation["current_error_cents"] == 0 and not reconciliation["affected_order_count"]:
         d.metric("Reported number", "Correct ✓")
     else:
-        d.metric("Corrected revenue", "Not verified")
-    brief = (report.get("review") or {}).get("stakeholder_brief")
+        d.metric(f"Corrected {dom.metric_noun}", "Not verified")
+    review = report.get("review") or {}
+    if review.get("verdict") == "challenged":
+        open_items = [c for c in review.get("concerns", []) if c.startswith("Blocking")] or review.get("concerns", [])
+        st.warning("**The independent reviewer still has an open concern** after the agent's revision. "
+                   "Treat the explanation below as provisional; the dollar reconciliation and fix check are deterministic.\n\n"
+                   + "\n".join(f"- {_md(c)}" for c in open_items[:3]))
+    brief = review.get("stakeholder_brief")
     if brief:
-        st.markdown(f"<div class='brief'><b>📨 Brief for the CFO</b> · drafted by the reviewer<br>{_html(brief)}</div>", unsafe_allow_html=True)
-    tabs = st.tabs(["Finding", "Agent timeline", "Affected orders", "Execution evidence", "Verify a correction", "Export"])
+        st.markdown(f"<div class='brief'><b>📨 Brief for leadership</b> · drafted by the reviewer<br>{_html(brief)}</div>", unsafe_allow_html=True)
+    tabs = st.tabs(["Finding", "Agent timeline", f"Affected {dom.items}", "Execution evidence", "Verify a correction", "Export"])
     with tabs[0]:
         if reconciliation is None:
             st.info("Refund treatment is undefined, so no number can be called right or wrong yet.")
         else:
-            _revenue_bridge(previous_cents, current_cents, reconciliation)
-            st.caption("Real change applies the same order-level contract to both snapshots. Reporting error compares the query with that contract.")
+            _revenue_bridge(previous_cents, current_cents, reconciliation, dom.money_label)
+            st.caption(f"Real change applies the same {dom.item}-level contract to both snapshots. Reporting error compares the query with that contract.")
         if report.get("root_cause"):
             st.markdown(f"**Root cause:** {_md(report['root_cause'])}")
         st.markdown(_md(report["summary"]))
@@ -436,12 +469,12 @@ def _result(case, report, context_key):
     with tabs[2]:
         if reconciliation and reconciliation["affected_orders"]:
             count = reconciliation["affected_order_count"]
-            st.subheader(f"Affected orders ({count:,})")
+            st.subheader(f"Affected {dom.items} ({count:,})")
             st.caption(f"Reported rows from {reconciliation['current_evidence_id']} compared with the order-level contract.")
             orders = pd.DataFrame(reconciliation["affected_orders"])
             for column in ["reported_cents", "expected_cents", "difference_cents"]:
                 orders[column] = orders[column].map(lambda value: f"${value / 100:,.2f}")
-            st.dataframe(orders.rename(columns={"order_id": "Order", "reported_cents": "Reported USD",
+            st.dataframe(orders.rename(columns={"order_id": dom.item.title(), "reported_cents": "Reported USD",
                 "expected_cents": "Expected USD", "difference_cents": "Difference USD",
                 "reported_rows": "Reported rows", "expected_rows": "Expected rows"}),
                 width="stretch", hide_index=True)
@@ -480,16 +513,19 @@ def _result(case, report, context_key):
 
 
 def _clarify_prompt(report):
+    dom = get_domain(report.get("domain"))
     question = (report.get("clarification") or {}).get("question") or \
-        "Refund treatment is not defined. Should refunds reduce this revenue metric?"
+        f"Treatment of {dom.reversal_noun} is not defined. Should they net against {dom.metric_noun}?"
     st.markdown(f"""<div class="verdict" style="border-left:6px solid #475467">
       <div class="verdict-kicker">THE AGENT PAUSED TO ASK YOU</div>
       <div class="verdict-title" style="color:#344054;font-size:1.15rem">❓ {_html(question)}</div></div>""", unsafe_allow_html=True)
     left, right, _ = st.columns([1, 1, 2])
-    if left.button("Exclude refunds (gross sales)", type="primary", key="answer-exclude"):
+    exclude_label, include_label = (("Exclude refunds (gross sales)", "Include refunds (net revenue)") if dom.name == "revenue"
+                                    else ("Exclude reversals (gross paid)", "Include reversals (net paid)"))
+    if left.button(exclude_label, type="primary", key="answer-exclude"):
         st.session_state["pending_answer"] = "exclude"
         st.rerun()
-    if right.button("Include refunds (net revenue)", key="answer-include"):
+    if right.button(include_label, key="answer-include"):
         st.session_state["pending_answer"] = "include"
         st.rerun()
     if report.get("events"):
@@ -538,6 +574,18 @@ def _benchmark_tab():
         st.altair_chart(chart)
     st.dataframe(pd.DataFrame(data["table"]), hide_index=True, width="stretch")
     st.caption(data.get("method", ""))
+    reviewer_path = RESULTS / "reviewer_eval.json"
+    if reviewer_path.exists():
+        rev = json.loads(reviewer_path.read_text(encoding="utf-8"))
+        st.subheader("Is the reviewer more than decoration?")
+        st.markdown(f"We planted one known error into each of {rev['planted_total']} otherwise-correct diagnoses "
+                    f"(inflated dollar amounts, an invented cause, a flipped classification, an unverified fix). "
+                    f"**{rev['model']} challenged {rev['planted_caught']}/{rev['planted_total']}** and passed "
+                    f"**{rev['controls_passed']}/{rev['controls_total']}** unmodified diagnoses; the one it flagged had a real "
+                    f"double-count in the agent's explanation.")
+        st.dataframe(pd.DataFrame([{"Planted error": k.replace("_", " "), "Cases": v["n"], "Challenged": v["challenged"]}
+                                   for k, v in rev["summary"].items()]), hide_index=True, width="stretch")
+        st.caption(rev.get("method", ""))
 
 
 def _how_tab():
@@ -556,6 +604,20 @@ def _how_tab():
       agent -> ver [label="verify_correction"]; ver -> agent; agent -> analyst [label="request_clarification"]; analyst -> agent;
       agent -> rev; rev -> agent [label="challenge → revise"]; rev -> out; }""")
     st.markdown("""
+**What each layer adds**
+
+| | Verifier only (no AI) | Same model, raw rows, no tools | **DataTrace agent** |
+| --- | --- | --- | --- |
+| Detects that the number is wrong | ✓ | ✓ | ✓ |
+| Names the root cause | ✗ | ✓ when data fits | ✓ |
+| Correct dollar split, 4k-order retail incidents | n/a | 12/24 | **24/24** |
+| Correct dollar split, CMS claims incidents | n/a | 4/16 | **16/16** |
+| Works at 42k orders | ✓ | ✗ (context exceeded) | ✓ 10/10 |
+| Raw rows sent to the model | none | all | **none** |
+| Asks when the definition is missing | ✗ | ✗ | ✓ |
+| Fix verified order by order | ✓ (its own) | after the fact | ✓ before reporting |
+| Cost per realistic case | $0 | $0.264 | $0.061 |
+
 **Four Meta model roles**
 
 | Model | Role in DataTrace |
@@ -632,12 +694,13 @@ def main():
     from reporting errors down to the order, and reports a fix only after an independent check verifies it.</p>
     <div class="models">Powered by <code>muse-spark-1.3</code> agent · <code>muse-wonder-1.0</code> reviewer · <code>muse-voice-transcribe-1.0</code> intake</div>
     </div>""", unsafe_allow_html=True)
-    key_ready = bool(os.environ.get("MODEL_API_KEY", "").strip())
+    key_ready = bool(os.environ.get("MODEL_API_KEY", "").strip()) or (
+        os.environ.get("DATATRACE_PROVIDER", "").lower() == "openweight" and bool(os.environ.get("OPENWEIGHT_API_KEY", "").strip()))
     public = _public_demo()
     with st.sidebar:
         st.header("Investigation setup")
         link = _deep_link()
-        scenario = st.selectbox("Synthetic incident", [label for label, _ in SCENARIO_CHOICES],
+        scenario = st.selectbox("Incident", [label for label, _ in SCENARIO_CHOICES],
                                 index=link["incident_index"] or 0)
         choice = dict(SCENARIO_CHOICES)[scenario]
         modes = [LIVE, RECORDED_MODE, OFFLINE]
@@ -653,7 +716,10 @@ def main():
             review = st.toggle("Independent reviewer (muse-wonder-1.0)", value=True)
             effort = st.select_slider("Agent reasoning effort", ["low", "medium", "high"], value="medium")
         if mode == LIVE:
-            if key_ready:
+            provider = os.environ.get("DATATRACE_PROVIDER", "meta").lower()
+            if provider == "openweight":
+                st.success(f"Open-weight agent: {os.environ.get('OPENWEIGHT_MODEL', '?')} (key never displayed).")
+            elif key_ready:
                 st.success("Meta key configured (never displayed).")
             else:
                 st.info("Add MODEL_API_KEY to .env for live mode.")
@@ -711,7 +777,7 @@ def main():
                     ok, why = _budget_ok("investigation")
                     if not ok:
                         raise MetaAPIError(why)
-                    client = MetaClient()
+                    client = make_agent_client()
                     client.effort = effort
                     report = investigate_meta(clarified, client=client, review=review, resume=paused["resume_state"],
                                               answer=answer, on_event=lambda e: _event(box, e))
@@ -736,7 +802,7 @@ def main():
                     ok, why = _budget_ok("investigation")
                     if not ok:
                         raise MetaAPIError(why)
-                    client = MetaClient()
+                    client = make_agent_client()
                     client.effort = effort
                     report = investigate_meta(case, client=client, review=review, on_event=lambda e: _event(box, e))
                     _record_use("investigation")

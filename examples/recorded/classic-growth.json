@@ -10,19 +10,16 @@
   "model": "muse-spark-1.3",
   "model_classification": "genuine_change",
   "model_correction_sql": null,
-  "model_summary": "Paid October revenue rose from $1,200 (120,000c, 3 orders) to $1,500 (150,000c, 4 orders), a +$300 increase driven entirely by new order 6 ($300, 2026-10-25, paid sale) which satisfies the metric contract. Existing exclusions remain correct.",
+  "model_summary": "Paid October revenue rose from $1,200.00 (120000 cents, 3 orders) to $1,500.00 (150000 cents, 4 orders), a +$300.00 increase driven by new order 6 ($300.00 on 2026-10-25, paid sale) which satisfies all contract filters. Boundary rows remain correctly excluded.",
   "consistency_issues": [],
   "classification": "genuine_change",
-  "summary": "Paid October revenue rose from $1,200 (120,000c, 3 orders) to $1,500 (150,000c, 4 orders), a +$300 increase driven entirely by new order 6 ($300, 2026-10-25, paid sale) which satisfies the metric contract. Existing exclusions remain correct.",
-  "root_cause": "Addition of eligible paid sale order 6 for $300 on 2026-10-25 with no SQL change.",
+  "summary": "Paid October revenue rose from $1,200.00 (120000 cents, 3 orders) to $1,500.00 (150000 cents, 4 orders), a +$300.00 increase driven by new order 6 ($300.00 on 2026-10-25, paid sale) which satisfies all contract filters. Boundary rows remain correctly excluded.",
+  "root_cause": null,
   "evidence_ids": [
-   "E1",
-   "E2",
-   "E4",
    "E5",
-   "E7",
    "E8",
-   "E9"
+   "E9",
+   "E7"
   ],
   "correction_sql": null,
   "validation": null,
@@ -184,7 +181,7 @@
     "revenue_cents": 150000
    },
    {
-    "sql": "SELECT order_id, customer_id, order_date, status, kind, revenue_cents FROM orders WHERE order_id = 6",
+    "sql": "SELECT order_id, customer_id, order_date, status, kind, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund' ORDER BY order_id",
     "columns": [
      "order_id",
      "customer_id",
@@ -194,6 +191,30 @@
      "revenue_cents"
     ],
     "rows": [
+     [
+      1,
+      1,
+      "2026-10-05",
+      "paid",
+      "sale",
+      20000
+     ],
+     [
+      2,
+      2,
+      "2026-10-12",
+      "paid",
+      "sale",
+      40000
+     ],
+     [
+      3,
+      3,
+      "2026-10-18",
+      "paid",
+      "sale",
+      60000
+     ],
      [
       6,
       1,
@@ -209,67 +230,58 @@
     "snapshot": "current"
    },
    {
-    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE NOT (status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund') ORDER BY order_id",
+    "sql": "SELECT o.order_id, o.customer_id, c.customer_id AS matched_id, c.region FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund' ORDER BY o.order_id",
     "columns": [
      "order_id",
-     "order_date",
-     "status",
-     "kind",
-     "revenue_cents"
+     "customer_id",
+     "matched_id",
+     "region"
     ],
     "rows": [
      [
-      4,
-      "2026-11-01",
-      "paid",
-      "sale",
-      8000
+      1,
+      1,
+      1,
+      "West"
      ],
      [
-      5,
-      "2026-10-20",
-      "pending",
-      "sale",
-      18000
+      2,
+      2,
+      2,
+      "East"
+     ],
+     [
+      3,
+      3,
+      3,
+      "North"
+     ],
+     [
+      6,
+      1,
+      1,
+      "West"
      ]
     ],
     "truncated": false,
     "elapsed_ms": 0.0,
     "evidence_id": "E6",
-    "snapshot": "previous"
+    "snapshot": "current"
    },
    {
-    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE NOT (status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund') ORDER BY order_id",
+    "sql": "SELECT order_id, COUNT(*) AS n FROM orders GROUP BY order_id HAVING COUNT(*) > 1",
     "columns": [
      "order_id",
-     "order_date",
-     "status",
-     "kind",
-     "revenue_cents"
+     "n"
     ],
-    "rows": [
-     [
-      4,
-      "2026-11-01",
-      "paid",
-      "sale",
-      8000
-     ],
-     [
-      5,
-      "2026-10-20",
-      "pending",
-      "sale",
-      18000
-     ]
-    ],
+    "rows": [],
     "truncated": false,
     "elapsed_ms": 0.0,
     "evidence_id": "E7",
     "snapshot": "current"
    },
    {
-    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date >= '2026-11-01' OR order_date < '2026-10-01' ORDER BY order_id",
+    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders ORDER BY order_id",
     "columns": [
      "order_id",
      "order_date",
@@ -279,11 +291,46 @@
     ],
     "rows": [
      [
+      1,
+      "2026-10-05",
+      "paid",
+      "sale",
+      20000
+     ],
+     [
+      2,
+      "2026-10-12",
+      "paid",
+      "sale",
+      40000
+     ],
+     [
+      3,
+      "2026-10-18",
+      "paid",
+      "sale",
+      60000
+     ],
+     [
       4,
       "2026-11-01",
       "paid",
       "sale",
       8000
+     ],
+     [
+      5,
+      "2026-10-20",
+      "pending",
+      "sale",
+      18000
+     ],
+     [
+      6,
+      "2026-10-25",
+      "paid",
+      "sale",
+      30000
      ]
     ],
     "truncated": false,
@@ -292,16 +339,55 @@
     "snapshot": "current"
    },
    {
-    "sql": "SELECT order_id, COUNT(*) AS c FROM orders GROUP BY order_id HAVING c > 1",
+    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders ORDER BY order_id",
     "columns": [
      "order_id",
-     "c"
+     "order_date",
+     "status",
+     "kind",
+     "revenue_cents"
     ],
-    "rows": [],
+    "rows": [
+     [
+      1,
+      "2026-10-05",
+      "paid",
+      "sale",
+      20000
+     ],
+     [
+      2,
+      "2026-10-12",
+      "paid",
+      "sale",
+      40000
+     ],
+     [
+      3,
+      "2026-10-18",
+      "paid",
+      "sale",
+      60000
+     ],
+     [
+      4,
+      "2026-11-01",
+      "paid",
+      "sale",
+      8000
+     ],
+     [
+      5,
+      "2026-10-20",
+      "pending",
+      "sale",
+      18000
+     ]
+    ],
     "truncated": false,
     "elapsed_ms": 0.0,
     "evidence_id": "E9",
-    "snapshot": "current"
+    "snapshot": "previous"
    },
    {
     "sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund'",
@@ -337,9 +423,9 @@
   "trace": [
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Verify new order 6 meets contract\",\"snapshot\":\"current\",\"sql\":\"SELECT order_id, customer_id, order_date, status, kind, revenue_cents FROM orders WHERE order_id = 6\"}",
+    "arguments": "{\"purpose\":\"Verify new row meets contract filters\",\"snapshot\":\"current\",\"sql\":\"SELECT order_id, customer_id, order_date, status, kind, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund' ORDER BY order_id\"}",
     "result": {
-     "sql": "SELECT order_id, customer_id, order_date, status, kind, revenue_cents FROM orders WHERE order_id = 6",
+     "sql": "SELECT order_id, customer_id, order_date, status, kind, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund' ORDER BY order_id",
      "columns": [
       "order_id",
       "customer_id",
@@ -349,6 +435,30 @@
       "revenue_cents"
      ],
      "rows": [
+      [
+       1,
+       1,
+       "2026-10-05",
+       "paid",
+       "sale",
+       20000
+      ],
+      [
+       2,
+       2,
+       "2026-10-12",
+       "paid",
+       "sale",
+       40000
+      ],
+      [
+       3,
+       3,
+       "2026-10-18",
+       "paid",
+       "sale",
+       60000
+      ],
       [
        6,
        1,
@@ -366,66 +476,57 @@
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"List excluded orders previous snapshot\",\"snapshot\":\"previous\",\"sql\":\"SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE NOT (status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund') ORDER BY order_id\"}",
+    "arguments": "{\"purpose\":\"Test customer coverage includes unmatched\",\"snapshot\":\"current\",\"sql\":\"SELECT o.order_id, o.customer_id, c.customer_id AS matched_id, c.region FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund' ORDER BY o.order_id\"}",
     "result": {
-     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE NOT (status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund') ORDER BY order_id",
+     "sql": "SELECT o.order_id, o.customer_id, c.customer_id AS matched_id, c.region FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund' ORDER BY o.order_id",
      "columns": [
       "order_id",
-      "order_date",
-      "status",
-      "kind",
-      "revenue_cents"
+      "customer_id",
+      "matched_id",
+      "region"
      ],
      "rows": [
       [
-       4,
-       "2026-11-01",
-       "paid",
-       "sale",
-       8000
+       1,
+       1,
+       1,
+       "West"
       ],
       [
-       5,
-       "2026-10-20",
-       "pending",
-       "sale",
-       18000
+       2,
+       2,
+       2,
+       "East"
+      ],
+      [
+       3,
+       3,
+       3,
+       "North"
+      ],
+      [
+       6,
+       1,
+       1,
+       "West"
       ]
      ],
      "truncated": false,
      "elapsed_ms": 0.0,
      "evidence_id": "E6",
-     "snapshot": "previous"
+     "snapshot": "current"
     }
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"List excluded orders current snapshot\",\"snapshot\":\"current\",\"sql\":\"SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE NOT (status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund') ORDER BY order_id\"}",
+    "arguments": "{\"purpose\":\"Test grain has no duplicate order_id\",\"snapshot\":\"current\",\"sql\":\"SELECT order_id, COUNT(*) AS n FROM orders GROUP BY order_id HAVING COUNT(*) > 1\"}",
     "result": {
-     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE NOT (status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund') ORDER BY order_id",
+     "sql": "SELECT order_id, COUNT(*) AS n FROM orders GROUP BY order_id HAVING COUNT(*) > 1",
      "columns": [
       "order_id",
-      "order_date",
-      "status",
-      "kind",
-      "revenue_cents"
+      "n"
      ],
-     "rows": [
-      [
-       4,
-       "2026-11-01",
-       "paid",
-       "sale",
-       8000
-      ],
-      [
-       5,
-       "2026-10-20",
-       "pending",
-       "sale",
-       18000
-      ]
-     ],
+     "rows": [],
      "truncated": false,
      "elapsed_ms": 0.0,
      "evidence_id": "E7",
@@ -434,9 +535,9 @@
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Check date boundary handling\",\"snapshot\":\"current\",\"sql\":\"SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date >= '2026-11-01' OR order_date < '2026-10-01' ORDER BY order_id\"}",
+    "arguments": "{\"purpose\":\"Check date status refund boundaries\",\"snapshot\":\"current\",\"sql\":\"SELECT order_id, order_date, status, kind, revenue_cents FROM orders ORDER BY order_id\"}",
     "result": {
-     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date >= '2026-11-01' OR order_date < '2026-10-01' ORDER BY order_id",
+     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders ORDER BY order_id",
      "columns": [
       "order_id",
       "order_date",
@@ -446,11 +547,46 @@
      ],
      "rows": [
       [
+       1,
+       "2026-10-05",
+       "paid",
+       "sale",
+       20000
+      ],
+      [
+       2,
+       "2026-10-12",
+       "paid",
+       "sale",
+       40000
+      ],
+      [
+       3,
+       "2026-10-18",
+       "paid",
+       "sale",
+       60000
+      ],
+      [
        4,
        "2026-11-01",
        "paid",
        "sale",
        8000
+      ],
+      [
+       5,
+       "2026-10-20",
+       "pending",
+       "sale",
+       18000
+      ],
+      [
+       6,
+       "2026-10-25",
+       "paid",
+       "sale",
+       30000
       ]
      ],
      "truncated": false,
@@ -461,24 +597,63 @@
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Check duplicate order_ids current\",\"snapshot\":\"current\",\"sql\":\"SELECT order_id, COUNT(*) AS c FROM orders GROUP BY order_id HAVING c > 1\"}",
+    "arguments": "{\"purpose\":\"Confirm new order absent previously\",\"snapshot\":\"previous\",\"sql\":\"SELECT order_id, order_date, status, kind, revenue_cents FROM orders ORDER BY order_id\"}",
     "result": {
-     "sql": "SELECT order_id, COUNT(*) AS c FROM orders GROUP BY order_id HAVING c > 1",
+     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders ORDER BY order_id",
      "columns": [
       "order_id",
-      "c"
+      "order_date",
+      "status",
+      "kind",
+      "revenue_cents"
      ],
-     "rows": [],
+     "rows": [
+      [
+       1,
+       "2026-10-05",
+       "paid",
+       "sale",
+       20000
+      ],
+      [
+       2,
+       "2026-10-12",
+       "paid",
+       "sale",
+       40000
+      ],
+      [
+       3,
+       "2026-10-18",
+       "paid",
+       "sale",
+       60000
+      ],
+      [
+       4,
+       "2026-11-01",
+       "paid",
+       "sale",
+       8000
+      ],
+      [
+       5,
+       "2026-10-20",
+       "pending",
+       "sale",
+       18000
+      ]
+     ],
      "truncated": false,
      "elapsed_ms": 0.0,
      "evidence_id": "E9",
-     "snapshot": "current"
+     "snapshot": "previous"
     }
    }
   ],
   "usage": {
-   "input_tokens": 7396,
-   "output_tokens": 3528,
+   "input_tokens": 7678,
+   "output_tokens": 3236,
    "model_requests": 2,
    "tool_calls": 5,
    "review_requests": 1
@@ -530,36 +705,36 @@
    },
    {
     "type": "thinking",
-    "t": 13.23,
-    "text": "Forming hypotheses and designing parallel diagnostic queries to test join cardinality, row matches, date ranges, and filters without re-running replay."
+    "t": 12.73,
+    "text": "Verifying that SQL logic matches the metric contract and checking for grain uniqueness to explain the revenue increase."
    },
    {
     "type": "thinking",
-    "t": 13.23,
-    "text": "Validating the metric contract against schema and snapshots before classifying the revenue change."
+    "t": 12.73,
+    "text": "Designing parallel diagnostic queries to validate the new row and rule filters without replaying the original query."
    },
    {
     "type": "thinking",
-    "t": 13.23,
-    "text": "Designing targeted diagnostic queries to verify order exclusions and date boundaries without re-running replay."
+    "t": 12.73,
+    "text": "Drafting parallel snapshot queries to validate grain, coverage, and boundaries with new evidence IDs."
    },
    {
     "type": "tool_call",
-    "t": 13.23,
+    "t": 12.73,
     "tool": "query_snapshot",
-    "purpose": "Verify new order 6 meets contract",
+    "purpose": "Verify new row meets contract filters",
     "snapshot": "current",
-    "sql": "SELECT order_id, customer_id, order_date, status, kind, revenue_cents FROM orders WHERE order_id = 6",
+    "sql": "SELECT order_id, customer_id, order_date, status, kind, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund' ORDER BY order_id",
     "question": null,
-    "call_id": "call_01a1a4c0b20e7686a674f92bdb8153a1"
+    "call_id": "call_01a1a586ed777654a70a958fd5dcb230"
    },
    {
     "type": "tool_result",
-    "t": 13.23,
+    "t": 12.73,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4c0b20e7686a674f92bdb8153a1",
+    "call_id": "call_01a1a586ed777654a70a958fd5dcb230",
     "result": {
-     "sql": "SELECT order_id, customer_id, order_date, status, kind, revenue_cents FROM orders WHERE order_id = 6",
+     "sql": "SELECT order_id, customer_id, order_date, status, kind, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund' ORDER BY order_id",
      "columns": [
       "order_id",
       "customer_id",
@@ -569,6 +744,30 @@
       "revenue_cents"
      ],
      "rows": [
+      [
+       1,
+       1,
+       "2026-10-05",
+       "paid",
+       "sale",
+       20000
+      ],
+      [
+       2,
+       2,
+       "2026-10-12",
+       "paid",
+       "sale",
+       40000
+      ],
+      [
+       3,
+       3,
+       "2026-10-18",
+       "paid",
+       "sale",
+       60000
+      ],
       [
        6,
        1,
@@ -585,89 +784,80 @@
    },
    {
     "type": "tool_call",
-    "t": 13.23,
+    "t": 12.73,
     "tool": "query_snapshot",
-    "purpose": "List excluded orders previous snapshot",
-    "snapshot": "previous",
-    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE NOT (status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund') ORDER BY order_id",
+    "purpose": "Test customer coverage includes unmatched",
+    "snapshot": "current",
+    "sql": "SELECT o.order_id, o.customer_id, c.customer_id AS matched_id, c.region FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund' ORDER BY o.order_id",
     "question": null,
-    "call_id": "call_01a1a4c0b3d374c19fef68906715c6f4"
+    "call_id": "call_01a1a586f02177f899b6d123fc3f6a1e"
    },
    {
     "type": "tool_result",
-    "t": 13.23,
+    "t": 12.73,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4c0b3d374c19fef68906715c6f4",
+    "call_id": "call_01a1a586f02177f899b6d123fc3f6a1e",
     "result": {
-     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE NOT (status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund') ORDER BY order_id",
+     "sql": "SELECT o.order_id, o.customer_id, c.customer_id AS matched_id, c.region FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND o.kind <> 'refund' ORDER BY o.order_id",
      "columns": [
       "order_id",
-      "order_date",
-      "status",
-      "kind",
-      "revenue_cents"
+      "customer_id",
+      "matched_id",
+      "region"
      ],
      "rows": [
       [
-       4,
-       "2026-11-01",
-       "paid",
-       "sale",
-       8000
+       1,
+       1,
+       1,
+       "West"
       ],
       [
-       5,
-       "2026-10-20",
-       "pending",
-       "sale",
-       18000
+       2,
+       2,
+       2,
+       "East"
+      ],
+      [
+       3,
+       3,
+       3,
+       "North"
+      ],
+      [
+       6,
+       1,
+       1,
+       "West"
       ]
      ],
      "truncated": false,
      "evidence_id": "E6",
-     "snapshot": "previous"
+     "snapshot": "current"
     }
    },
    {
     "type": "tool_call",
-    "t": 13.23,
+    "t": 12.73,
     "tool": "query_snapshot",
-    "purpose": "List excluded orders current snapshot",
+    "purpose": "Test grain has no duplicate order_id",
     "snapshot": "current",
-    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE NOT (status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund') ORDER BY order_id",
+    "sql": "SELECT order_id, COUNT(*) AS n FROM orders GROUP BY order_id HAVING COUNT(*) > 1",
     "question": null,
-    "call_id": "call_01a1a4c0b6177191af5dfb78ef42c549"
+    "call_id": "call_01a1a586f34a773d9302617792ec8868"
    },
    {
     "type": "tool_result",
-    "t": 13.23,
+    "t": 12.73,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4c0b6177191af5dfb78ef42c549",
+    "call_id": "call_01a1a586f34a773d9302617792ec8868",
     "result": {
-     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE NOT (status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' AND kind <> 'refund') ORDER BY order_id",
+     "sql": "SELECT order_id, COUNT(*) AS n FROM orders GROUP BY order_id HAVING COUNT(*) > 1",
      "columns": [
       "order_id",
-      "order_date",
-      "status",
-      "kind",
-      "revenue_cents"
+      "n"
      ],
-     "rows": [
-      [
-       4,
-       "2026-11-01",
-       "paid",
-       "sale",
-       8000
-      ],
-      [
-       5,
-       "2026-10-20",
-       "pending",
-       "sale",
-       18000
-      ]
-     ],
+     "rows": [],
      "truncated": false,
      "evidence_id": "E7",
      "snapshot": "current"
@@ -675,21 +865,21 @@
    },
    {
     "type": "tool_call",
-    "t": 13.23,
+    "t": 12.73,
     "tool": "query_snapshot",
-    "purpose": "Check date boundary handling",
+    "purpose": "Check date status refund boundaries",
     "snapshot": "current",
-    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date >= '2026-11-01' OR order_date < '2026-10-01' ORDER BY order_id",
+    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders ORDER BY order_id",
     "question": null,
-    "call_id": "call_01a1a4c0b82270a3b04e4fbf6b01ec82"
+    "call_id": "call_01a1a586f55e76ca9a1df2d46dfa8c7c"
    },
    {
     "type": "tool_result",
-    "t": 13.23,
+    "t": 12.73,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4c0b82270a3b04e4fbf6b01ec82",
+    "call_id": "call_01a1a586f55e76ca9a1df2d46dfa8c7c",
     "result": {
-     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders WHERE order_date >= '2026-11-01' OR order_date < '2026-10-01' ORDER BY order_id",
+     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders ORDER BY order_id",
      "columns": [
       "order_id",
       "order_date",
@@ -699,11 +889,46 @@
      ],
      "rows": [
       [
+       1,
+       "2026-10-05",
+       "paid",
+       "sale",
+       20000
+      ],
+      [
+       2,
+       "2026-10-12",
+       "paid",
+       "sale",
+       40000
+      ],
+      [
+       3,
+       "2026-10-18",
+       "paid",
+       "sale",
+       60000
+      ],
+      [
        4,
        "2026-11-01",
        "paid",
        "sale",
        8000
+      ],
+      [
+       5,
+       "2026-10-20",
+       "pending",
+       "sale",
+       18000
+      ],
+      [
+       6,
+       "2026-10-25",
+       "paid",
+       "sale",
+       30000
       ]
      ],
      "truncated": false,
@@ -713,65 +938,104 @@
    },
    {
     "type": "tool_call",
-    "t": 13.23,
+    "t": 12.73,
     "tool": "query_snapshot",
-    "purpose": "Check duplicate order_ids current",
-    "snapshot": "current",
-    "sql": "SELECT order_id, COUNT(*) AS c FROM orders GROUP BY order_id HAVING c > 1",
+    "purpose": "Confirm new order absent previously",
+    "snapshot": "previous",
+    "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders ORDER BY order_id",
     "question": null,
-    "call_id": "call_01a1a4c0ba447785be1380fd8d97f091"
+    "call_id": "call_01a1a586f797740c8606b964e8bc0961"
    },
    {
     "type": "tool_result",
-    "t": 13.23,
+    "t": 12.73,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4c0ba447785be1380fd8d97f091",
+    "call_id": "call_01a1a586f797740c8606b964e8bc0961",
     "result": {
-     "sql": "SELECT order_id, COUNT(*) AS c FROM orders GROUP BY order_id HAVING c > 1",
+     "sql": "SELECT order_id, order_date, status, kind, revenue_cents FROM orders ORDER BY order_id",
      "columns": [
       "order_id",
-      "c"
+      "order_date",
+      "status",
+      "kind",
+      "revenue_cents"
      ],
-     "rows": [],
+     "rows": [
+      [
+       1,
+       "2026-10-05",
+       "paid",
+       "sale",
+       20000
+      ],
+      [
+       2,
+       "2026-10-12",
+       "paid",
+       "sale",
+       40000
+      ],
+      [
+       3,
+       "2026-10-18",
+       "paid",
+       "sale",
+       60000
+      ],
+      [
+       4,
+       "2026-11-01",
+       "paid",
+       "sale",
+       8000
+      ],
+      [
+       5,
+       "2026-10-20",
+       "pending",
+       "sale",
+       18000
+      ]
+     ],
      "truncated": false,
      "evidence_id": "E9",
-     "snapshot": "current"
+     "snapshot": "previous"
     }
    },
    {
     "type": "thinking",
-    "t": 23.45,
-    "text": "Concluding SQL has no effect while data change adds 30k revenue, with order 6 meeting all contract criteria."
+    "t": 27.14,
+    "text": "Validating SQL against the metric contract and attributing a $300 revenue increase to data movement via four-way replay."
    },
    {
     "type": "thinking",
-    "t": 23.45,
-    "text": "Verifying evidence IDs and confirming the revenue increase is a genuine change with no defects."
+    "t": 27.14,
+    "text": "Finalizing evidence selection and confirming the genuine_change classification with contract reconciliation."
    },
    {
     "type": "diagnosis",
-    "t": 23.45,
+    "t": 27.14,
     "classification": "genuine_change",
-    "summary": "Paid October revenue rose from $1,200 (120,000c, 3 orders) to $1,500 (150,000c, 4 orders), a +$300 increase driven entirely by new order 6 ($300, 2026-10-25, paid sale) which satisfies the metric contract. Existing exclusions remain correct.",
-    "root_cause": "Addition of eligible paid sale order 6 for $300 on 2026-10-25 with no SQL change.",
+    "summary": "Paid October revenue rose from $1,200.00 (120000 cents, 3 orders) to $1,500.00 (150000 cents, 4 orders), a +$300.00 increase driven by new order 6 ($300.00 on 2026-10-25, paid sale) which satisfies all contract filters. Boundary rows remain correctly excluded.",
+    "root_cause": null,
     "correction_sql": null
    },
    {
     "type": "review_start",
-    "t": 23.45,
+    "t": 27.14,
     "model": "muse-wonder-1.0"
    },
    {
     "type": "review",
-    "t": 29.92,
+    "t": 31.92,
     "verdict": "supported",
     "concerns": [],
-    "brief": "Paid October revenue rose by $300, from $1,200 to $1,500, entirely because new order 6 added an eligible $300 paid sale on 2026-10-25; the SQL did not change (E1-E4). No correction is needed, so finance can report $1,500 with confidence, corroborated by zero contract-reconciliation error and order-level checks confirming order 6 qualifies and other exclusions remain correct (E5, E7, E9).",
+    "brief": "Paid October revenue genuinely increased from $1,200.00 to $1,500.00, a $300.00 underlying increase, with no measurement error in either period. No correction is needed; finance can report the $1,500.00 current figure.",
     "model": "muse-wonder-1.0"
    },
    {
     "type": "done",
-    "t": 29.92,
+    "t": 31.92,
     "classification": "genuine_change"
    }
   ],
@@ -779,10 +1043,10 @@
    "model": "muse-wonder-1.0",
    "verdict": "supported",
    "concerns": [],
-   "stakeholder_brief": "Paid October revenue rose by $300, from $1,200 to $1,500, entirely because new order 6 added an eligible $300 paid sale on 2026-10-25; the SQL did not change (E1-E4). No correction is needed, so finance can report $1,500 with confidence, corroborated by zero contract-reconciliation error and order-level checks confirming order 6 qualifies and other exclusions remain correct (E5, E7, E9).",
+   "stakeholder_brief": "Paid October revenue genuinely increased from $1,200.00 to $1,500.00, a $300.00 underlying increase, with no measurement error in either period. No correction is needed; finance can report the $1,500.00 current figure.",
    "usage": {
-    "input_tokens": 1504,
-    "output_tokens": 654
+    "input_tokens": 1370,
+    "output_tokens": 637
    }
   },
   "review_history": [
@@ -790,19 +1054,19 @@
     "model": "muse-wonder-1.0",
     "verdict": "supported",
     "concerns": [],
-    "stakeholder_brief": "Paid October revenue rose by $300, from $1,200 to $1,500, entirely because new order 6 added an eligible $300 paid sale on 2026-10-25; the SQL did not change (E1-E4). No correction is needed, so finance can report $1,500 with confidence, corroborated by zero contract-reconciliation error and order-level checks confirming order 6 qualifies and other exclusions remain correct (E5, E7, E9).",
+    "stakeholder_brief": "Paid October revenue genuinely increased from $1,200.00 to $1,500.00, a $300.00 underlying increase, with no measurement error in either period. No correction is needed; finance can report the $1,500.00 current figure.",
     "usage": {
-     "input_tokens": 1504,
-     "output_tokens": 654
+     "input_tokens": 1370,
+     "output_tokens": 637
     }
    }
   ],
   "clarified": false,
-  "elapsed_seconds": 29.922,
+  "elapsed_seconds": 31.922,
   "limitations": "Model interpretation; execution evidence and independent repair checks do not verify every prose claim. Local prototype.",
   "report_version": 1,
-  "generated_at": "2026-11-04T04:11:13.532223+00:00",
-  "input_sha256": "1379db35dbb8d4a76cc255f688a588207d8460bd3542b074c83d652c5f97c073",
+  "generated_at": "2026-11-04T07:47:47.548079+00:00",
+  "input_sha256": "561ee95ecc84f2fa2ebc733822c124967708e8603b7fe93bbe03468ec5566f01",
   "metric_contract": {
    "name": "Paid October revenue",
    "grain": "one row per order_id",
@@ -813,9 +1077,10 @@
    "refund_policy": "exclude",
    "customer_coverage": "all orders, including unmatched customers"
   },
+  "domain": "revenue",
   "sql_engine": "SQLite",
   "application_version": "0.3.0",
-  "source_sha256": "928e5dacb796e9c1013894649463658e621456cd6c333af8f997f36d1bb71551",
+  "source_sha256": "a4ee6aa8b351896488c6a4b0cb2d27338c0cf95ec0c9e3d0040c39f465f0cd8e",
   "runtime": {
    "python": "3.11.5",
    "sqlite": "3.41.2"

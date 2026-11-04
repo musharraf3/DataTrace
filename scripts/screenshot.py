@@ -20,10 +20,11 @@ CHROME = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
 PORT = 9333
 BASE = "http://localhost:8501/"
 SHOTS = [
-    ("verdict.png", "?incident=crm_migration&mode=recorded&autorun=1&fast=1", None, 1150),
-    ("timeline.png", "?incident=crm_migration&mode=recorded&autorun=1&fast=1", "Agent timeline", 1400),
-    ("benchmark.png", "", "Agent vs. baseline benchmark", 1000),
-    ("clarification.png", "?incident=refund_policy&mode=recorded&autorun=1&fast=1", None, 900),
+    ("verdict.png", "?incident=eligibility_spans&mode=recorded&autorun=1&fast=1", None, 1150),
+    ("verdict_retail.png", "?incident=crm_migration&mode=recorded&autorun=1&fast=1", None, 1150),
+    ("timeline.png", "?incident=eligibility_spans&mode=recorded&autorun=1&fast=1", "Agent timeline", 1400),
+    ("benchmark.png", "", "Agent vs. baseline benchmark", 1100),
+    ("clarification.png", "?incident=reversal_policy&mode=recorded&autorun=1&fast=1", None, 900),
 ]
 
 
@@ -49,7 +50,7 @@ async def shoot(ws_url, name, query, tab, height):
                       " if (t) { t.click(); t.scrollIntoView({block: 'start'}); } })()" % json.dumps(tab))
             await call(ws, counter, "Runtime.evaluate", expression=script)
             await asyncio.sleep(3)
-        if name in {"verdict.png", "clarification.png"}:  # Frame the result, not the hero.
+        if name in {"verdict.png", "verdict_retail.png", "clarification.png"}:  # Frame the result, not the hero.
             await call(ws, counter, "Runtime.evaluate", expression=(
                 "document.querySelector('.verdict')?.scrollIntoView({block:'start'})"))
             await asyncio.sleep(1)

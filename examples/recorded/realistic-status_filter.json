@@ -10,24 +10,23 @@
   "model": "muse-spark-1.3",
   "model_classification": "mixed_change",
   "model_correction_sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
-  "model_summary": "Reported Paid November revenue rose from $189,317 to $320,222 (+$130,905, +69%). On a consistent paid-only basis revenue rose from $189,317 to $304,397 (+$115,080 of genuine growth, including strong late-November paid sales of $106,761), while the remaining +$15,825 (146 pending orders) is a defect from including status='pending'. Corrected current Paid November revenue is $304,397.",
+  "model_summary": "Paid November revenue rose from $189,316.83 to $320,221.55 (+$130,904.72, +69%). Most is real: correctly-measured paid revenue grew to $304,396.67 (+$115,079.84), including $106,760.98 from 1,077 paid orders on Nov 25-30 (Black Friday/Cyber Monday) plus backfill growth in Nov 1-24. The remainder (+$15,824.88 from 146 orders) is a defect from including status='pending'. Corrected November paid revenue is $304,396.67.",
   "consistency_issues": [],
   "classification": "mixed_change",
-  "summary": "Reported Paid November revenue rose from $189,317 to $320,222 (+$130,905, +69%). On a consistent paid-only basis revenue rose from $189,317 to $304,397 (+$115,080 of genuine growth, including strong late-November paid sales of $106,761), while the remaining +$15,825 (146 pending orders) is a defect from including status='pending'. Corrected current Paid November revenue is $304,397.",
-  "root_cause": "Current SQL changed status filter from 'paid' to IN ('paid','pending'), violating the contract's status='paid' requirement.",
+  "summary": "Paid November revenue rose from $189,316.83 to $320,221.55 (+$130,904.72, +69%). Most is real: correctly-measured paid revenue grew to $304,396.67 (+$115,079.84), including $106,760.98 from 1,077 paid orders on Nov 25-30 (Black Friday/Cyber Monday) plus backfill growth in Nov 1-24. The remainder (+$15,824.88 from 146 orders) is a defect from including status='pending'. Corrected November paid revenue is $304,396.67.",
+  "root_cause": "Current SQL added status='pending' to a paid-only metric, adding 146 pending orders worth $15,824.88.",
   "evidence_ids": [
    "E1",
    "E2",
    "E4",
    "E5",
-   "E7",
-   "E10",
-   "E11"
+   "E6",
+   "E10"
   ],
   "correction_sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
   "validation": {
    "verified": true,
-   "evidence_id": "E12",
+   "evidence_id": "E11",
    "expected_revenue_cents": 30439667,
    "actual_revenue_cents": 30439667,
    "missing_row_count": 0,
@@ -1287,7 +1286,7 @@
      ]
     ],
     "truncated": true,
-    "elapsed_ms": 94.0,
+    "elapsed_ms": 0.0,
     "evidence_id": "E1",
     "snapshot": "previous",
     "total_row_count": 1995,
@@ -1702,7 +1701,7 @@
      ]
     ],
     "truncated": true,
-    "elapsed_ms": 156.0,
+    "elapsed_ms": 0.0,
     "evidence_id": "E2",
     "snapshot": "current",
     "total_row_count": 3153,
@@ -2117,7 +2116,7 @@
      ]
     ],
     "truncated": true,
-    "elapsed_ms": 110.0,
+    "elapsed_ms": 0.0,
     "evidence_id": "E3",
     "snapshot": "previous",
     "total_row_count": 2134,
@@ -2532,7 +2531,7 @@
      ]
     ],
     "truncated": true,
-    "elapsed_ms": 171.0,
+    "elapsed_ms": 0.0,
     "evidence_id": "E4",
     "snapshot": "current",
     "total_row_count": 3299,
@@ -2565,6 +2564,30 @@
     "truncated": false,
     "elapsed_ms": 0.0,
     "evidence_id": "E5",
+    "snapshot": "current"
+   },
+   {
+    "sql": "SELECT CASE WHEN order_date < '2026-11-25' THEN 'Nov01-24' ELSE 'Nov25-30' END AS period, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY period ORDER BY period",
+    "columns": [
+     "period",
+     "n",
+     "cents"
+    ],
+    "rows": [
+     [
+      "Nov01-24",
+      2076,
+      19763569
+     ],
+     [
+      "Nov25-30",
+      1077,
+      10676098
+     ]
+    ],
+    "truncated": false,
+    "elapsed_ms": 0.0,
+    "evidence_id": "E6",
     "snapshot": "current"
    },
    {
@@ -2603,67 +2626,45 @@
     ],
     "truncated": false,
     "elapsed_ms": 0.0,
-    "evidence_id": "E6",
-    "snapshot": "current"
-   },
-   {
-    "sql": "SELECT CASE WHEN order_date < '2026-11-25' THEN 'early_Nov' ELSE 'late_Nov' END AS period, COUNT(*) AS n, SUM(CASE WHEN status='paid' AND kind <> 'refund' THEN revenue_cents ELSE 0 END) AS paid_cents, SUM(CASE WHEN status='pending' AND kind <> 'refund' THEN revenue_cents ELSE 0 END) AS pending_cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY period ORDER BY period",
-    "columns": [
-     "period",
-     "n",
-     "paid_cents",
-     "pending_cents"
-    ],
-    "rows": [
-     [
-      "early_Nov",
-      2318,
-      19763569,
-      620568
-     ],
-     [
-      "late_Nov",
-      1247,
-      10676098,
-      961920
-     ]
-    ],
-    "truncated": false,
-    "elapsed_ms": 16.0,
     "evidence_id": "E7",
     "snapshot": "current"
    },
    {
-    "sql": "SELECT COUNT(*) AS nov_orders, SUM(CASE WHEN c.customer_id IS NULL THEN 1 ELSE 0 END) AS unmatched_n, SUM(CASE WHEN c.customer_id IS NULL AND o.status='paid' AND o.kind <> 'refund' THEN o.revenue_cents ELSE 0 END) AS unmatched_paid_cents FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01'",
+    "sql": "SELECT COUNT(*) AS total_rows, COUNT(DISTINCT order_id) AS distinct_ids, COUNT(*) - COUNT(DISTINCT order_id) AS dupes FROM orders WHERE status IN ('paid','pending') AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
     "columns": [
-     "nov_orders",
-     "unmatched_n",
-     "unmatched_paid_cents"
-    ],
-    "rows": [
-     [
-      3565,
-      146,
-      1155491
-     ]
-    ],
-    "truncated": false,
-    "elapsed_ms": 0.0,
-    "evidence_id": "E8",
-    "snapshot": "current"
-   },
-   {
-    "sql": "SELECT COUNT(*) AS n, COUNT(DISTINCT order_id) AS distinct_n, COUNT(*) - COUNT(DISTINCT order_id) AS dupes FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01'",
-    "columns": [
-     "n",
-     "distinct_n",
+     "total_rows",
+     "distinct_ids",
      "dupes"
     ],
     "rows": [
      [
-      3565,
-      3565,
+      3299,
+      3299,
       0
+     ]
+    ],
+    "truncated": false,
+    "elapsed_ms": 15.0,
+    "evidence_id": "E8",
+    "snapshot": "current"
+   },
+   {
+    "sql": "SELECT CASE WHEN c.customer_id IS NULL THEN 'unmatched' ELSE 'matched' END AS grp, COUNT(*) AS n, SUM(o.revenue_cents) AS cents FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY grp",
+    "columns": [
+     "grp",
+     "n",
+     "cents"
+    ],
+    "rows": [
+     [
+      "matched",
+      3022,
+      29284176
+     ],
+     [
+      "unmatched",
+      131,
+      1155491
      ]
     ],
     "truncated": false,
@@ -2672,35 +2673,6 @@
     "snapshot": "current"
    },
    {
-    "sql": "SELECT status, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY status ORDER BY status",
-    "columns": [
-     "status",
-     "n",
-     "cents"
-    ],
-    "rows": [
-     [
-      "cancelled",
-      108,
-      1119454
-     ],
-     [
-      "paid",
-      1995,
-      18931683
-     ],
-     [
-      "pending",
-      139,
-      1452454
-     ]
-    ],
-    "truncated": false,
-    "elapsed_ms": 0.0,
-    "evidence_id": "E10",
-    "snapshot": "previous"
-   },
-   {
     "sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
     "columns": [
      "order_id",
@@ -3109,8 +3081,8 @@
      ]
     ],
     "truncated": true,
-    "elapsed_ms": 16.0,
-    "evidence_id": "E11",
+    "elapsed_ms": 15.0,
+    "evidence_id": "E10",
     "snapshot": "current",
     "total_row_count": 3153
    },
@@ -3523,8 +3495,8 @@
      ]
     ],
     "truncated": true,
-    "elapsed_ms": 0.0,
-    "evidence_id": "E12",
+    "elapsed_ms": 15.0,
+    "evidence_id": "E11",
     "snapshot": "current",
     "total_row_count": 3153
    }
@@ -3532,7 +3504,7 @@
   "trace": [
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Quantify pending vs paid in Nov current\",\"snapshot\":\"current\",\"sql\":\"SELECT status, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY status ORDER BY status\"}",
+    "arguments": "{\"purpose\":\"Test pending status inflates current total\",\"snapshot\":\"current\",\"sql\":\"SELECT status, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY status ORDER BY status\"}",
     "result": {
      "sql": "SELECT status, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY status ORDER BY status",
      "columns": [
@@ -3565,7 +3537,35 @@
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Test refund filter impact in Nov\",\"snapshot\":\"current\",\"sql\":\"SELECT kind, status, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY kind, status ORDER BY kind, status\"}",
+    "arguments": "{\"purpose\":\"Test late-November drives genuine growth\",\"snapshot\":\"current\",\"sql\":\"SELECT CASE WHEN order_date < '2026-11-25' THEN 'Nov01-24' ELSE 'Nov25-30' END AS period, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY period ORDER BY period\"}",
+    "result": {
+     "sql": "SELECT CASE WHEN order_date < '2026-11-25' THEN 'Nov01-24' ELSE 'Nov25-30' END AS period, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY period ORDER BY period",
+     "columns": [
+      "period",
+      "n",
+      "cents"
+     ],
+     "rows": [
+      [
+       "Nov01-24",
+       2076,
+       19763569
+      ],
+      [
+       "Nov25-30",
+       1077,
+       10676098
+      ]
+     ],
+     "truncated": false,
+     "elapsed_ms": 0.0,
+     "evidence_id": "E6",
+     "snapshot": "current"
+    }
+   },
+   {
+    "tool": "query_snapshot",
+    "arguments": "{\"purpose\":\"Test refunds excluded correctly per contract\",\"snapshot\":\"current\",\"sql\":\"SELECT kind, status, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY kind, status ORDER BY kind, status\"}",
     "result": {
      "sql": "SELECT kind, status, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY kind, status ORDER BY kind, status",
      "columns": [
@@ -3602,79 +3602,53 @@
      ],
      "truncated": false,
      "elapsed_ms": 0.0,
-     "evidence_id": "E6",
-     "snapshot": "current"
-    }
-   },
-   {
-    "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Test date boundary late-Nov growth\",\"snapshot\":\"current\",\"sql\":\"SELECT CASE WHEN order_date < '2026-11-25' THEN 'early_Nov' ELSE 'late_Nov' END AS period, COUNT(*) AS n, SUM(CASE WHEN status='paid' AND kind <> 'refund' THEN revenue_cents ELSE 0 END) AS paid_cents, SUM(CASE WHEN status='pending' AND kind <> 'refund' THEN revenue_cents ELSE 0 END) AS pending_cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY period ORDER BY period\"}",
-    "result": {
-     "sql": "SELECT CASE WHEN order_date < '2026-11-25' THEN 'early_Nov' ELSE 'late_Nov' END AS period, COUNT(*) AS n, SUM(CASE WHEN status='paid' AND kind <> 'refund' THEN revenue_cents ELSE 0 END) AS paid_cents, SUM(CASE WHEN status='pending' AND kind <> 'refund' THEN revenue_cents ELSE 0 END) AS pending_cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY period ORDER BY period",
-     "columns": [
-      "period",
-      "n",
-      "paid_cents",
-      "pending_cents"
-     ],
-     "rows": [
-      [
-       "early_Nov",
-       2318,
-       19763569,
-       620568
-      ],
-      [
-       "late_Nov",
-       1247,
-       10676098,
-       961920
-      ]
-     ],
-     "truncated": false,
-     "elapsed_ms": 16.0,
      "evidence_id": "E7",
      "snapshot": "current"
     }
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Test unmatched customers coverage risk\",\"snapshot\":\"current\",\"sql\":\"SELECT COUNT(*) AS nov_orders, SUM(CASE WHEN c.customer_id IS NULL THEN 1 ELSE 0 END) AS unmatched_n, SUM(CASE WHEN c.customer_id IS NULL AND o.status='paid' AND o.kind <> 'refund' THEN o.revenue_cents ELSE 0 END) AS unmatched_paid_cents FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01'\"}",
+    "arguments": "{\"purpose\":\"Test duplicate order_ids break grain\",\"snapshot\":\"current\",\"sql\":\"SELECT COUNT(*) AS total_rows, COUNT(DISTINCT order_id) AS distinct_ids, COUNT(*) - COUNT(DISTINCT order_id) AS dupes FROM orders WHERE status IN ('paid','pending') AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'\"}",
     "result": {
-     "sql": "SELECT COUNT(*) AS nov_orders, SUM(CASE WHEN c.customer_id IS NULL THEN 1 ELSE 0 END) AS unmatched_n, SUM(CASE WHEN c.customer_id IS NULL AND o.status='paid' AND o.kind <> 'refund' THEN o.revenue_cents ELSE 0 END) AS unmatched_paid_cents FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01'",
+     "sql": "SELECT COUNT(*) AS total_rows, COUNT(DISTINCT order_id) AS distinct_ids, COUNT(*) - COUNT(DISTINCT order_id) AS dupes FROM orders WHERE status IN ('paid','pending') AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
      "columns": [
-      "nov_orders",
-      "unmatched_n",
-      "unmatched_paid_cents"
+      "total_rows",
+      "distinct_ids",
+      "dupes"
      ],
      "rows": [
       [
-       3565,
-       146,
-       1155491
+       3299,
+       3299,
+       0
       ]
      ],
      "truncated": false,
-     "elapsed_ms": 0.0,
+     "elapsed_ms": 15.0,
      "evidence_id": "E8",
      "snapshot": "current"
     }
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Check duplicate order_id grain violation\",\"snapshot\":\"current\",\"sql\":\"SELECT COUNT(*) AS n, COUNT(DISTINCT order_id) AS distinct_n, COUNT(*) - COUNT(DISTINCT order_id) AS dupes FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01'\"}",
+    "arguments": "{\"purpose\":\"Test unmatched customers should be included\",\"snapshot\":\"current\",\"sql\":\"SELECT CASE WHEN c.customer_id IS NULL THEN 'unmatched' ELSE 'matched' END AS grp, COUNT(*) AS n, SUM(o.revenue_cents) AS cents FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY grp\"}",
     "result": {
-     "sql": "SELECT COUNT(*) AS n, COUNT(DISTINCT order_id) AS distinct_n, COUNT(*) - COUNT(DISTINCT order_id) AS dupes FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01'",
+     "sql": "SELECT CASE WHEN c.customer_id IS NULL THEN 'unmatched' ELSE 'matched' END AS grp, COUNT(*) AS n, SUM(o.revenue_cents) AS cents FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY grp",
      "columns": [
+      "grp",
       "n",
-      "distinct_n",
-      "dupes"
+      "cents"
      ],
      "rows": [
       [
-       3565,
-       3565,
-       0
+       "matched",
+       3022,
+       29284176
+      ],
+      [
+       "unmatched",
+       131,
+       1155491
       ]
      ],
      "truncated": false,
@@ -3684,44 +3658,11 @@
     }
    },
    {
-    "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"Confirm pending defect existed previously\",\"snapshot\":\"previous\",\"sql\":\"SELECT status, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY status ORDER BY status\"}",
-    "result": {
-     "sql": "SELECT status, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY status ORDER BY status",
-     "columns": [
-      "status",
-      "n",
-      "cents"
-     ],
-     "rows": [
-      [
-       "cancelled",
-       108,
-       1119454
-      ],
-      [
-       "paid",
-       1995,
-       18931683
-      ],
-      [
-       "pending",
-       139,
-       1452454
-      ]
-     ],
-     "truncated": false,
-     "elapsed_ms": 0.0,
-     "evidence_id": "E10",
-     "snapshot": "previous"
-    }
-   },
-   {
     "tool": "verify_correction",
-    "arguments": "{\"purpose\":\"Verify restored paid-only filter matches contract\",\"sql\":\"SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'\"}",
+    "arguments": "{\"purpose\":\"Verify corrected paid-only SQL matches contract\",\"sql\":\"SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'\"}",
     "result": {
      "verified": true,
-     "evidence_id": "E11",
+     "evidence_id": "E10",
      "expected_revenue_cents": 30439667,
      "actual_revenue_cents": 30439667,
      "missing_row_count": 0,
@@ -3733,16 +3674,16 @@
    }
   ],
   "usage": {
-   "input_tokens": 13607,
-   "output_tokens": 5032,
+   "input_tokens": 13398,
+   "output_tokens": 4442,
    "model_requests": 3,
-   "tool_calls": 7,
+   "tool_calls": 6,
    "review_requests": 1
   },
   "events": [
    {
     "type": "start",
-    "t": 0.53,
+    "t": 0.02,
     "model": "muse-spark-1.3",
     "replay": [
      {
@@ -3786,34 +3727,34 @@
    },
    {
     "type": "thinking",
-    "t": 12.09,
-    "text": "Analyzing SQL contract mismatch, separating genuine revenue growth from error caused by including pending orders."
+    "t": 12.84,
+    "text": "Separating data growth from SQL logic change by comparing prior and current queries across two snapshots."
    },
    {
     "type": "thinking",
-    "t": 12.09,
-    "text": "Formulating independent diagnostic queries to isolate pending-order inclusion and drafting corrected SQL."
+    "t": 12.84,
+    "text": "Forming diagnostic queries to test status breakdown, refund handling, and duplicate order_id hypotheses."
    },
    {
     "type": "thinking",
-    "t": 12.09,
-    "text": "Designing targeted diagnostic queries to test pending-order and date-boundary hypotheses without re-running replay logic."
+    "t": 12.84,
+    "text": "Designing parallel queries to isolate date-range growth, refunds, and duplicate order_id effects."
    },
    {
     "type": "tool_call",
-    "t": 12.09,
+    "t": 12.84,
     "tool": "query_snapshot",
-    "purpose": "Quantify pending vs paid in Nov current",
+    "purpose": "Test pending status inflates current total",
     "snapshot": "current",
     "sql": "SELECT status, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY status ORDER BY status",
     "question": null,
-    "call_id": "call_01a1a4bfeab073c0a7351f796f2bd7a9"
+    "call_id": "call_01a1a585b82170f4beb6a5b1ed692c37"
    },
    {
     "type": "tool_result",
-    "t": 12.09,
+    "t": 12.84,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4bfeab073c0a7351f796f2bd7a9",
+    "call_id": "call_01a1a585b82170f4beb6a5b1ed692c37",
     "result": {
      "sql": "SELECT status, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY status ORDER BY status",
      "columns": [
@@ -3845,19 +3786,58 @@
    },
    {
     "type": "tool_call",
-    "t": 12.09,
+    "t": 12.84,
     "tool": "query_snapshot",
-    "purpose": "Test refund filter impact in Nov",
+    "purpose": "Test late-November drives genuine growth",
     "snapshot": "current",
-    "sql": "SELECT kind, status, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY kind, status ORDER BY kind, status",
+    "sql": "SELECT CASE WHEN order_date < '2026-11-25' THEN 'Nov01-24' ELSE 'Nov25-30' END AS period, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY period ORDER BY period",
     "question": null,
-    "call_id": "call_01a1a4bfed0e71939b0a082373fa7c03"
+    "call_id": "call_01a1a585bb0d7475a826c69aa8c3ff0c"
    },
    {
     "type": "tool_result",
-    "t": 12.09,
+    "t": 12.84,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4bfed0e71939b0a082373fa7c03",
+    "call_id": "call_01a1a585bb0d7475a826c69aa8c3ff0c",
+    "result": {
+     "sql": "SELECT CASE WHEN order_date < '2026-11-25' THEN 'Nov01-24' ELSE 'Nov25-30' END AS period, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY period ORDER BY period",
+     "columns": [
+      "period",
+      "n",
+      "cents"
+     ],
+     "rows": [
+      [
+       "Nov01-24",
+       2076,
+       19763569
+      ],
+      [
+       "Nov25-30",
+       1077,
+       10676098
+      ]
+     ],
+     "truncated": false,
+     "evidence_id": "E6",
+     "snapshot": "current"
+    }
+   },
+   {
+    "type": "tool_call",
+    "t": 12.84,
+    "tool": "query_snapshot",
+    "purpose": "Test refunds excluded correctly per contract",
+    "snapshot": "current",
+    "sql": "SELECT kind, status, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY kind, status ORDER BY kind, status",
+    "question": null,
+    "call_id": "call_01a1a585beca74e1b49f98cc6b44edd5"
+   },
+   {
+    "type": "tool_result",
+    "t": 12.84,
+    "tool": "query_snapshot",
+    "call_id": "call_01a1a585beca74e1b49f98cc6b44edd5",
     "result": {
      "sql": "SELECT kind, status, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY kind, status ORDER BY kind, status",
      "columns": [
@@ -3893,79 +3873,37 @@
       ]
      ],
      "truncated": false,
-     "evidence_id": "E6",
-     "snapshot": "current"
-    }
-   },
-   {
-    "type": "tool_call",
-    "t": 12.09,
-    "tool": "query_snapshot",
-    "purpose": "Test date boundary late-Nov growth",
-    "snapshot": "current",
-    "sql": "SELECT CASE WHEN order_date < '2026-11-25' THEN 'early_Nov' ELSE 'late_Nov' END AS period, COUNT(*) AS n, SUM(CASE WHEN status='paid' AND kind <> 'refund' THEN revenue_cents ELSE 0 END) AS paid_cents, SUM(CASE WHEN status='pending' AND kind <> 'refund' THEN revenue_cents ELSE 0 END) AS pending_cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY period ORDER BY period",
-    "question": null,
-    "call_id": "call_01a1a4bfef5f714781382b7388384ff7"
-   },
-   {
-    "type": "tool_result",
-    "t": 12.11,
-    "tool": "query_snapshot",
-    "call_id": "call_01a1a4bfef5f714781382b7388384ff7",
-    "result": {
-     "sql": "SELECT CASE WHEN order_date < '2026-11-25' THEN 'early_Nov' ELSE 'late_Nov' END AS period, COUNT(*) AS n, SUM(CASE WHEN status='paid' AND kind <> 'refund' THEN revenue_cents ELSE 0 END) AS paid_cents, SUM(CASE WHEN status='pending' AND kind <> 'refund' THEN revenue_cents ELSE 0 END) AS pending_cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY period ORDER BY period",
-     "columns": [
-      "period",
-      "n",
-      "paid_cents",
-      "pending_cents"
-     ],
-     "rows": [
-      [
-       "early_Nov",
-       2318,
-       19763569,
-       620568
-      ],
-      [
-       "late_Nov",
-       1247,
-       10676098,
-       961920
-      ]
-     ],
-     "truncated": false,
      "evidence_id": "E7",
      "snapshot": "current"
     }
    },
    {
     "type": "tool_call",
-    "t": 12.11,
+    "t": 12.84,
     "tool": "query_snapshot",
-    "purpose": "Test unmatched customers coverage risk",
+    "purpose": "Test duplicate order_ids break grain",
     "snapshot": "current",
-    "sql": "SELECT COUNT(*) AS nov_orders, SUM(CASE WHEN c.customer_id IS NULL THEN 1 ELSE 0 END) AS unmatched_n, SUM(CASE WHEN c.customer_id IS NULL AND o.status='paid' AND o.kind <> 'refund' THEN o.revenue_cents ELSE 0 END) AS unmatched_paid_cents FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01'",
+    "sql": "SELECT COUNT(*) AS total_rows, COUNT(DISTINCT order_id) AS distinct_ids, COUNT(*) - COUNT(DISTINCT order_id) AS dupes FROM orders WHERE status IN ('paid','pending') AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
     "question": null,
-    "call_id": "call_01a1a4bff328735c844e3f6dcd364257"
+    "call_id": "call_01a1a585c16e70ebb0fc0bde1c58880d"
    },
    {
     "type": "tool_result",
-    "t": 12.11,
+    "t": 12.86,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4bff328735c844e3f6dcd364257",
+    "call_id": "call_01a1a585c16e70ebb0fc0bde1c58880d",
     "result": {
-     "sql": "SELECT COUNT(*) AS nov_orders, SUM(CASE WHEN c.customer_id IS NULL THEN 1 ELSE 0 END) AS unmatched_n, SUM(CASE WHEN c.customer_id IS NULL AND o.status='paid' AND o.kind <> 'refund' THEN o.revenue_cents ELSE 0 END) AS unmatched_paid_cents FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01'",
+     "sql": "SELECT COUNT(*) AS total_rows, COUNT(DISTINCT order_id) AS distinct_ids, COUNT(*) - COUNT(DISTINCT order_id) AS dupes FROM orders WHERE status IN ('paid','pending') AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
      "columns": [
-      "nov_orders",
-      "unmatched_n",
-      "unmatched_paid_cents"
+      "total_rows",
+      "distinct_ids",
+      "dupes"
      ],
      "rows": [
       [
-       3565,
-       146,
-       1155491
+       3299,
+       3299,
+       0
       ]
      ],
      "truncated": false,
@@ -3975,31 +3913,36 @@
    },
    {
     "type": "tool_call",
-    "t": 12.11,
+    "t": 12.86,
     "tool": "query_snapshot",
-    "purpose": "Check duplicate order_id grain violation",
+    "purpose": "Test unmatched customers should be included",
     "snapshot": "current",
-    "sql": "SELECT COUNT(*) AS n, COUNT(DISTINCT order_id) AS distinct_n, COUNT(*) - COUNT(DISTINCT order_id) AS dupes FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01'",
+    "sql": "SELECT CASE WHEN c.customer_id IS NULL THEN 'unmatched' ELSE 'matched' END AS grp, COUNT(*) AS n, SUM(o.revenue_cents) AS cents FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY grp",
     "question": null,
-    "call_id": "call_01a1a4bff63072c6b0ef7fdd1106fc02"
+    "call_id": "call_01a1a585c4ca7016b23c8e59231b4eaa"
    },
    {
     "type": "tool_result",
-    "t": 12.11,
+    "t": 12.86,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4bff63072c6b0ef7fdd1106fc02",
+    "call_id": "call_01a1a585c4ca7016b23c8e59231b4eaa",
     "result": {
-     "sql": "SELECT COUNT(*) AS n, COUNT(DISTINCT order_id) AS distinct_n, COUNT(*) - COUNT(DISTINCT order_id) AS dupes FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01'",
+     "sql": "SELECT CASE WHEN c.customer_id IS NULL THEN 'unmatched' ELSE 'matched' END AS grp, COUNT(*) AS n, SUM(o.revenue_cents) AS cents FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY grp",
      "columns": [
+      "grp",
       "n",
-      "distinct_n",
-      "dupes"
+      "cents"
      ],
      "rows": [
       [
-       3565,
-       3565,
-       0
+       "matched",
+       3022,
+       29284176
+      ],
+      [
+       "unmatched",
+       131,
+       1155491
       ]
      ],
      "truncated": false,
@@ -4009,81 +3952,32 @@
    },
    {
     "type": "thinking",
-    "t": 27.42,
-    "text": "Analyzing revenue metric discrepancy by comparing SQL status filters and snapshot results across prior and current queries."
+    "t": 23.17,
+    "text": "Analyzing a revenue metric regression by comparing previous and current SQL snapshots and identifying a contract violation from including pending status."
    },
    {
     "type": "thinking",
-    "t": 27.42,
-    "text": "Isolating the $15.8k overcount to pending status rows and confirming the $115k increase is legitimate business growth."
-   },
-   {
-    "type": "thinking",
-    "t": 27.42,
-    "text": "Preparing a corrected SQL using the prior version and adding a parallel check for prior-snapshot pending rows."
+    "t": 23.17,
+    "text": "Quantifying genuine growth versus pending-status error and drafting the correction SQL with verification."
    },
    {
     "type": "tool_call",
-    "t": 27.42,
-    "tool": "query_snapshot",
-    "purpose": "Confirm pending defect existed previously",
-    "snapshot": "previous",
-    "sql": "SELECT status, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY status ORDER BY status",
-    "question": null,
-    "call_id": "call_01a1a4c029c17091b4fb99386fd284c1"
-   },
-   {
-    "type": "tool_result",
-    "t": 27.42,
-    "tool": "query_snapshot",
-    "call_id": "call_01a1a4c029c17091b4fb99386fd284c1",
-    "result": {
-     "sql": "SELECT status, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY status ORDER BY status",
-     "columns": [
-      "status",
-      "n",
-      "cents"
-     ],
-     "rows": [
-      [
-       "cancelled",
-       108,
-       1119454
-      ],
-      [
-       "paid",
-       1995,
-       18931683
-      ],
-      [
-       "pending",
-       139,
-       1452454
-      ]
-     ],
-     "truncated": false,
-     "evidence_id": "E10",
-     "snapshot": "previous"
-    }
-   },
-   {
-    "type": "tool_call",
-    "t": 27.42,
+    "t": 23.17,
     "tool": "verify_correction",
-    "purpose": "Verify restored paid-only filter matches contract",
+    "purpose": "Verify corrected paid-only SQL matches contract",
     "snapshot": null,
     "sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
     "question": null,
-    "call_id": "call_01a1a4c02be5748fa5bdc03f5c94d942"
+    "call_id": "call_01a1a585e8a6735681fff9a1f28eec47"
    },
    {
     "type": "tool_result",
-    "t": 27.44,
+    "t": 23.19,
     "tool": "verify_correction",
-    "call_id": "call_01a1a4c02be5748fa5bdc03f5c94d942",
+    "call_id": "call_01a1a585e8a6735681fff9a1f28eec47",
     "result": {
      "verified": true,
-     "evidence_id": "E11",
+     "evidence_id": "E10",
      "expected_revenue_cents": 30439667,
      "actual_revenue_cents": 30439667,
      "missing_row_count": 0,
@@ -4095,45 +3989,50 @@
    },
    {
     "type": "thinking",
-    "t": 41.83,
-    "text": "Analyzing revenue increase by separating genuine data movement from a calculation defect involving pending status."
+    "t": 35.59,
+    "text": "Decomposing metric variance by separating genuine paid data growth from contract violation due to pending status inclusion."
    },
    {
     "type": "thinking",
-    "t": 41.83,
-    "text": "Classifying the revenue variance as mixed change and validating the correction query."
+    "t": 35.59,
+    "text": "Quantifying the $15,825 error from 146 pending orders and classifying it as mixed change with genuine late-November growth."
+   },
+   {
+    "type": "thinking",
+    "t": 35.59,
+    "text": "Listing required evidence IDs and drafting the corrected SQL with the output constraint."
    },
    {
     "type": "diagnosis",
-    "t": 41.83,
+    "t": 35.59,
     "classification": "mixed_change",
-    "summary": "Reported Paid November revenue rose from $189,317 to $320,222 (+$130,905, +69%). On a consistent paid-only basis revenue rose from $189,317 to $304,397 (+$115,080 of genuine growth, including strong late-November paid sales of $106,761), while the remaining +$15,825 (146 pending orders) is a defect from including status='pending'. Corrected current Paid November revenue is $304,397.",
-    "root_cause": "Current SQL changed status filter from 'paid' to IN ('paid','pending'), violating the contract's status='paid' requirement.",
+    "summary": "Paid November revenue rose from $189,316.83 to $320,221.55 (+$130,904.72, +69%). Most is real: correctly-measured paid revenue grew to $304,396.67 (+$115,079.84), including $106,760.98 from 1,077 paid orders on Nov 25-30 (Black Friday/Cyber Monday) plus backfill growth in Nov 1-24. The remainder (+$15,824.88 from 146 orders) is a defect from including status='pending'. Corrected November paid revenue is $304,396.67.",
+    "root_cause": "Current SQL added status='pending' to a paid-only metric, adding 146 pending orders worth $15,824.88.",
     "correction_sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'"
    },
    {
     "type": "verified",
-    "t": 41.83,
+    "t": 35.62,
     "verified": true,
     "reason": "Complete order/value multiset matches the metric contract.",
-    "evidence_id": "E12"
+    "evidence_id": "E11"
    },
    {
     "type": "review_start",
-    "t": 41.83,
+    "t": 35.62,
     "model": "muse-wonder-1.0"
    },
    {
     "type": "review",
-    "t": 48.69,
+    "t": 43.09,
     "verdict": "supported",
     "concerns": [],
-    "brief": "Reported Paid November revenue of $320,222 overstates the contract-correct figure by $15,825 because it includes 146 pending orders; corrected revenue is $304,397. The remaining increase from $189,317 is $115,080 of genuine paid growth, so finance should report $304,397 and exclude the pending-order amount.",
+    "brief": "Paid November revenue genuinely grew by $115,079.84 to a corrected $304,396.67, rather than the reported $320,221.55. The remaining $15,824.88 from 146 pending orders is a defect in the current SQL; use the verified corrected SQL and report $304,396.67.",
     "model": "muse-wonder-1.0"
    },
    {
     "type": "done",
-    "t": 48.69,
+    "t": 43.09,
     "classification": "mixed_change"
    }
   ],
@@ -4141,10 +4040,10 @@
    "model": "muse-wonder-1.0",
    "verdict": "supported",
    "concerns": [],
-   "stakeholder_brief": "Reported Paid November revenue of $320,222 overstates the contract-correct figure by $15,825 because it includes 146 pending orders; corrected revenue is $304,397. The remaining increase from $189,317 is $115,080 of genuine paid growth, so finance should report $304,397 and exclude the pending-order amount.",
+   "stakeholder_brief": "Paid November revenue genuinely grew by $115,079.84 to a corrected $304,396.67, rather than the reported $320,221.55. The remaining $15,824.88 from 146 pending orders is a defect in the current SQL; use the verified corrected SQL and report $304,396.67.",
    "usage": {
-    "input_tokens": 2090,
-    "output_tokens": 679
+    "input_tokens": 2003,
+    "output_tokens": 916
    }
   },
   "review_history": [
@@ -4152,19 +4051,19 @@
     "model": "muse-wonder-1.0",
     "verdict": "supported",
     "concerns": [],
-    "stakeholder_brief": "Reported Paid November revenue of $320,222 overstates the contract-correct figure by $15,825 because it includes 146 pending orders; corrected revenue is $304,397. The remaining increase from $189,317 is $115,080 of genuine paid growth, so finance should report $304,397 and exclude the pending-order amount.",
+    "stakeholder_brief": "Paid November revenue genuinely grew by $115,079.84 to a corrected $304,396.67, rather than the reported $320,221.55. The remaining $15,824.88 from 146 pending orders is a defect in the current SQL; use the verified corrected SQL and report $304,396.67.",
     "usage": {
-     "input_tokens": 2090,
-     "output_tokens": 679
+     "input_tokens": 2003,
+     "output_tokens": 916
     }
    }
   ],
   "clarified": false,
-  "elapsed_seconds": 48.688,
+  "elapsed_seconds": 43.094,
   "limitations": "Model interpretation; execution evidence and independent repair checks do not verify every prose claim. Local prototype.",
   "report_version": 1,
-  "generated_at": "2026-11-04T04:10:43.600835+00:00",
-  "input_sha256": "f6aa322faa12d916da1bcae4a197604e512f0dcfca31bc4c0b6d637950fa9c16",
+  "generated_at": "2026-11-04T07:46:40.380242+00:00",
+  "input_sha256": "26a5816072cecda8d19dde72155c248735cb127b6c6c0bc9cebfe6202b516645",
   "metric_contract": {
    "name": "Paid November revenue",
    "grain": "one row per order_id",
@@ -4175,9 +4074,10 @@
    "refund_policy": "exclude",
    "customer_coverage": "all orders, including unmatched customers"
   },
+  "domain": "revenue",
   "sql_engine": "SQLite",
   "application_version": "0.3.0",
-  "source_sha256": "928e5dacb796e9c1013894649463658e621456cd6c333af8f997f36d1bb71551",
+  "source_sha256": "a4ee6aa8b351896488c6a4b0cb2d27338c0cf95ec0c9e3d0040c39f465f0cd8e",
   "runtime": {
    "python": "3.11.5",
    "sqlite": "3.41.2"

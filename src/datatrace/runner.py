@@ -19,15 +19,19 @@ class QueryRunner:
                  "abs", "round", "substr", "substring", "lower", "upper", "length", "trim", "ltrim", "rtrim",
                  "instr", "replace", "date", "strftime", "julianday", "group_concat"}
 
-    def __init__(self, snapshot, *, timeout=5.0, max_steps=60000000, max_rows=100):
+    def __init__(self, snapshot, *, timeout=5.0, max_steps=60000000, max_rows=100, domain=None):
+        from .domains import get
         from .inputs import validate_snapshot
         snapshot = validate_snapshot(snapshot)
+        d = self.domain = domain if hasattr(domain, "fact") else get(domain)
+        self.tables = {d.fact, d.dim}
         self.connection = sqlite3.connect(":memory:")
-        self.connection.execute("CREATE TABLE orders (order_id INTEGER, customer_id INTEGER, "
-                                "order_date TEXT, status TEXT, kind TEXT, revenue_cents INTEGER)")
-        self.connection.execute("CREATE TABLE customers (customer_id INTEGER, region TEXT)")
-        self.connection.executemany("INSERT INTO orders VALUES (?, ?, ?, ?, ?, ?)", snapshot["orders"])
-        self.connection.executemany("INSERT INTO customers VALUES (?, ?)", snapshot["customers"])
+        self.connection.execute(f"CREATE TABLE {d.fact} ({d.key} INTEGER, {d.member} INTEGER, "
+                                f"{d.date} TEXT, status TEXT, kind TEXT, {d.value} INTEGER)")
+        self.connection.execute(f"CREATE TABLE {d.dim} ({d.member} INTEGER, {d.attr} TEXT)")
+        self.connection.executemany(f"INSERT INTO {d.fact} VALUES (?, ?, ?, ?, ?, ?)",
+                                    [d.translate_fact(row) for row in snapshot["orders"]])
+        self.connection.executemany(f"INSERT INTO {d.dim} VALUES (?, ?)", snapshot["customers"])
         self.connection.commit()
         self.connection.execute("PRAGMA query_only=ON")
         self.connection.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, 100000)
@@ -44,7 +48,7 @@ class QueryRunner:
             # SQLite reports no database and an empty column for COUNT(*)'s
             # optimized table read. Permit only that special read of known tables.
             local_read = database == "main" or (database is None and arg2 == "")
-            return (sqlite3.SQLITE_OK if local_read and arg1 in {"orders", "customers"}
+            return (sqlite3.SQLITE_OK if local_read and arg1 in self.tables
                     else sqlite3.SQLITE_DENY)
         if action == sqlite3.SQLITE_FUNCTION and (arg2 or "").lower() in self.FUNCTIONS:
             return sqlite3.SQLITE_OK

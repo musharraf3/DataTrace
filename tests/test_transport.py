@@ -95,3 +95,30 @@ def test_provider_error_detail_is_reported_without_retrying_client_errors(monkey
     with pytest.raises(MetaAPIError, match="context_length_exceeded"):
         MetaClient().complete(inputs="test")
     assert len(calls) == 1
+
+
+def test_openweight_adapter_refuses_unapproved_hosts(monkeypatch):
+    from datatrace.openweight import ChatCompletionsClient
+    for url in ["http://inference.baseten.co/v1", "https://evil.example/v1", "https://baseten.co.evil.example/v1"]:
+        with pytest.raises(MetaAPIError, match="must be https"):
+            ChatCompletionsClient(base_url=url, key="test-placeholder", model="m")
+
+
+def test_openweight_adapter_translates_tool_calls_and_keeps_history(monkeypatch):
+    from datatrace.openweight import ChatCompletionsClient
+    sent = []
+    replies = [
+        {"choices": [{"message": {"content": None, "tool_calls": [{"id": "c1", "type": "function", "function": {
+            "name": "query_snapshot", "arguments": json.dumps({"snapshot": "current", "sql": "SELECT COUNT(*) FROM orders", "purpose": "p"})}}]}}],
+         "usage": {"prompt_tokens": 10, "completion_tokens": 5}},
+        {"choices": [{"message": {"content": json.dumps(conclusion(evidence_ids=["E5"]))}}],
+         "usage": {"prompt_tokens": 12, "completion_tokens": 6}},
+    ]
+    client = ChatCompletionsClient(base_url="https://inference.baseten.co/v1", key="test-placeholder", model="m")
+    monkeypatch.setattr(client, "_send", lambda request, timeout: (sent.append(json.loads(request.data)), replies.pop(0))[1])
+    report = investigate_meta(make_case(), client=client)
+    assert report["usage"]["tool_calls"] == 1 and report["usage"]["input_tokens"] == 22
+    second = sent[1]["messages"]
+    assert second[-2]["role"] == "assistant" and second[-2]["tool_calls"][0]["id"] == "c1"
+    assert second[-1] == {"role": "tool", "tool_call_id": "c1", "content": second[-1]["content"]}
+    assert json.loads(second[-1]["content"])["rows"] == [[5]]

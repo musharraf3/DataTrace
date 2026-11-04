@@ -14,34 +14,46 @@ class Incident:
     current_sql: str
     expected_classification: str
     family: str
+    domain: str = "revenue"
 
     def public_context(self):
+        from .domains import get
+        d = get(self.domain)
+        contract = dict(self.contract)
+        contract["status"] = d.status(contract["status"])
+        contract["grain"] = f"one row per {d.key}"
+        contract["customer_coverage"] = f"all {d.items}, including unmatched {d.member_noun}s"
         return {
             "incident": self.description,
-            "metric_contract": self.contract,
+            "domain": d.name,
+            "metric_contract": contract,
             "previous_sql": self.previous_sql,
             "current_sql": self.current_sql,
             "schema": {
-                "orders": ["order_id INTEGER", "customer_id INTEGER", "order_date TEXT",
-                           "status TEXT", "kind TEXT", "revenue_cents INTEGER"],
-                "customers": ["customer_id INTEGER", "region TEXT"],
+                d.fact: [f"{d.key} INTEGER", f"{d.member} INTEGER", f"{d.date} TEXT",
+                         "status TEXT", "kind TEXT", f"{d.value} INTEGER"],
+                d.dim: [f"{d.member} INTEGER", f"{d.attr} TEXT"],
             },
+            "vocabulary": {"status": sorted(d.status_map.values()), "kind": sorted(d.kind_map.values()),
+                           "refund_policy": f"whether {d.reversal_noun} (kind='{d.kind('refund')}') are included"},
             "snapshots": ["previous", "current"],
-            "sql_dialect": "SQLite; metric queries return order_id, revenue_cents",
+            "sql_dialect": f"SQLite; metric queries return {d.key}, {d.value} rows (integer cents)",
         }
 
 
-def canonical_sql(contract):
+def canonical_sql(contract, domain=None):
+    from .domains import get
     from .inputs import validate_contract
+    d = domain if hasattr(domain, "fact") else get(domain)
     contract = validate_contract(contract)
     if contract["refund_policy"] is None:
         raise ValueError("Refund treatment is missing from the metric definition.")
     # Contract validation admits ISO dates and enumerated statuses only.
     start, end = contract["start"], contract["end_exclusive"]
-    refund = " AND kind <> 'refund'" if contract["refund_policy"] == "exclude" else ""
-    return ("SELECT order_id, revenue_cents FROM orders "
-            f"WHERE status = '{contract['status']}' AND order_date >= '{start}' "
-            f"AND order_date < '{end}'{refund}")
+    refund = f" AND kind <> '{d.kind('refund')}'" if contract["refund_policy"] == "exclude" else ""
+    return (f"SELECT {d.key}, {d.value} FROM {d.fact} "
+            f"WHERE status = '{d.status(contract['status'])}' AND {d.date} >= '{start}' "
+            f"AND {d.date} < '{end}'{refund}")
 
 
 def make_case(family="duplicate_join", variant=0):

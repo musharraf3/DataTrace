@@ -1,10 +1,12 @@
 {
-  "headline": "Across all runs the DataTrace agent produced the correct diagnosis in **159/160** cases, the same Meta model without tools in **150/160**. When the data fits in a prompt, both are accurate, but on realistic 4k-order incidents the agent used **14\u00d7 fewer input tokens** and cost **4.3\u00d7 less**, without sending a single raw row. At warehouse scale (~42k orders) the raw rows exceed the model's context window: the baseline could not run (**0/10**), while the agent solved **10/10**.",
+  "headline": "Across all runs the DataTrace agent produced the correct diagnosis in **179/180** cases, the same Meta model without tools in **168/180**. When the data fits in a prompt, both are accurate, but on realistic 4k-order incidents the agent used **14\u00d7 fewer input tokens** and cost **4.3\u00d7 less**, without sending a single raw row. The baseline usually names the right category but not the right numbers: on realistic incidents it put correct dollar amounts on real change and reporting error in **12/24** runs, the agent in **24/24**. On the CMS DE-SynPUF claims incidents the gap widens: correct dollar split in **16/16** runs for the agent versus **4/16** for the baseline. At warehouse scale (~42k orders) the raw rows exceed the model's context window: the baseline could not run (**0/10**), while the agent solved **10/10**.",
   "table": [
     {
       "Split": "Development (20 mini cases)",
       "System": "DataTrace agent (tools + verifier + reviewer)",
       "Correct diagnosis": "59/60",
+      "Root cause named": "59/60",
+      "Dollar split correct": "47/47",
       "Verified repair when needed": "36/36",
       "Unneeded repairs": "0/24",
       "Errors / could not run": "1/60",
@@ -17,6 +19,8 @@
       "Split": "Development (20 mini cases)",
       "System": "Same model, no tools, raw rows in prompt",
       "Correct diagnosis": "60/60",
+      "Root cause named": "60/60",
+      "Dollar split correct": "48/48",
       "Verified repair when needed": "36/36",
       "Unneeded repairs": "0/24",
       "Errors / could not run": "0/60",
@@ -29,6 +33,8 @@
       "Split": "Stress (20 mini cases, new values)",
       "System": "DataTrace agent (tools + verifier + reviewer)",
       "Correct diagnosis": "60/60",
+      "Root cause named": "60/60",
+      "Dollar split correct": "48/48",
       "Verified repair when needed": "36/36",
       "Unneeded repairs": "0/24",
       "Errors / could not run": "0/60",
@@ -41,6 +47,8 @@
       "Split": "Stress (20 mini cases, new values)",
       "System": "Same model, no tools, raw rows in prompt",
       "Correct diagnosis": "60/60",
+      "Root cause named": "60/60",
+      "Dollar split correct": "48/48",
       "Verified repair when needed": "36/36",
       "Unneeded repairs": "0/24",
       "Errors / could not run": "0/60",
@@ -53,6 +61,8 @@
       "Split": "Realistic (10 cases, ~4k orders)",
       "System": "DataTrace agent (tools + verifier + reviewer)",
       "Correct diagnosis": "30/30",
+      "Root cause named": "30/30",
+      "Dollar split correct": "24/24",
       "Verified repair when needed": "18/18",
       "Unneeded repairs": "0/12",
       "Errors / could not run": "0/30",
@@ -65,6 +75,8 @@
       "Split": "Realistic (10 cases, ~4k orders)",
       "System": "Same model, no tools, raw rows in prompt",
       "Correct diagnosis": "30/30",
+      "Root cause named": "30/30",
+      "Dollar split correct": "12/24",
       "Verified repair when needed": "18/18",
       "Unneeded repairs": "0/12",
       "Errors / could not run": "0/30",
@@ -77,6 +89,8 @@
       "Split": "Warehouse scale (5 cases, ~42k orders)",
       "System": "DataTrace agent (tools + verifier + reviewer)",
       "Correct diagnosis": "10/10",
+      "Root cause named": "10/10",
+      "Dollar split correct": "8/8",
       "Verified repair when needed": "6/6",
       "Unneeded repairs": "0/4",
       "Errors / could not run": "0/10",
@@ -89,6 +103,8 @@
       "Split": "Warehouse scale (5 cases, ~42k orders)",
       "System": "Same model, no tools, raw rows in prompt",
       "Correct diagnosis": "0/10",
+      "Root cause named": "0/10",
+      "Dollar split correct": "n/a",
       "Verified repair when needed": "0/6",
       "Unneeded repairs": "0/4",
       "Errors / could not run": "10/10",
@@ -96,6 +112,34 @@
       "Input tokens per case": "0",
       "Est. cost per case": "$0.000",
       "Median seconds": null
+    },
+    {
+      "Split": "Healthcare claims (10 cases, CMS DE-SynPUF)",
+      "System": "DataTrace agent (tools + verifier + reviewer)",
+      "Correct diagnosis": "20/20",
+      "Root cause named": "20/20",
+      "Dollar split correct": "16/16",
+      "Verified repair when needed": "12/12",
+      "Unneeded repairs": "0/8",
+      "Errors / could not run": "0/20",
+      "Asked for clarification": 4,
+      "Input tokens per case": "22,990",
+      "Est. cost per case": "$0.084",
+      "Median seconds": 74.187
+    },
+    {
+      "Split": "Healthcare claims (10 cases, CMS DE-SynPUF)",
+      "System": "Same model, no tools, raw rows in prompt",
+      "Correct diagnosis": "18/20",
+      "Root cause named": "18/20",
+      "Dollar split correct": "4/16",
+      "Verified repair when needed": "12/12",
+      "Unneeded repairs": "0/8",
+      "Errors / could not run": "2/20",
+      "Asked for clarification": 0,
+      "Input tokens per case": "183,044",
+      "Est. cost per case": "$0.246",
+      "Median seconds": 40.813
     }
   ],
   "chart": [
@@ -138,11 +182,22 @@
       "Split": "Warehouse scale",
       "System": "No-tools baseline",
       "Correct": 0.0
+    },
+    {
+      "Split": "Healthcare claims",
+      "System": "DataTrace agent",
+      "Correct": 1.0
+    },
+    {
+      "Split": "Healthcare claims",
+      "System": "No-tools baseline",
+      "Correct": 0.9
     }
   ],
-  "method": "Synthetic, author-generated incidents with hidden labels; every case was run 3\u00d7 (scale split 2\u00d7) at reasoning effort 'medium'. Correctness is the final, guarded classification. 'Verified repair' means the independent per-order check passed. Costs use Meta list prices on 2026-11-03 and include the muse-wonder-1.0 reviewer for the agent. Not a production benchmark. Raw per-case reports are produced by `python -m datatrace.evaluate --mode compare`.",
+  "method": "Synthetic, author-generated incidents with hidden labels; every case was run 3\u00d7 (scale split 2\u00d7) at reasoning effort 'medium'. Correctness is the final, guarded classification. 'Verified repair' means the independent per-order check passed. Costs use Meta list prices on 2026-11-03 and include the muse-wonder-1.0 reviewer for the agent. 'Root cause named' uses a keyword rubric per incident family; 'Dollar split correct' requires both the real change and the reporting error to appear in the explanation within 1% of the deterministic reconciliation. Not a production benchmark. Raw per-case reports are produced by `python -m datatrace.evaluate --mode compare`.",
   "notes": [
     "Development (20 mini cases), DataTrace agent (tools + verifier + reviewer): Could not complete the Meta API request. Check connectivity and retry explicitly. (a transient network failure; automatic retries for network/429/5xx errors were added afterwards)",
-    "Warehouse scale (5 cases, ~42k orders), Same model, no tools, raw rows in prompt: HTTP 400 context_length_exceeded on every request: the raw rows are 2,064,623 tokens and the model's context window is 1,048,576 tokens (error body confirmed directly)."
+    "Warehouse scale (5 cases, ~42k orders), Same model, no tools, raw rows in prompt: HTTP 400 context_length_exceeded on every request: the raw rows are 2,064,623 tokens and the model's context window is 1,048,576 tokens (error body confirmed directly).",
+    "Healthcare claims (10 cases, CMS DE-SynPUF), Same model, no tools, raw rows in prompt: Baseline response did not complete. (the provider returned an incomplete response, typically the output budget spent on reasoning over the raw rows)"
   ]
 }

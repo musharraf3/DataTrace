@@ -58,7 +58,7 @@ def validate_contract(contract):
 
 
 def _integer(value, label, *, positive=False):
-    if type(value) is not int or abs(value) > 10**12 or (positive and value <= 0):
+    if type(value) is not int or abs(value) > 10**16 or (positive and value <= 0):
         raise InputError(f"{label} must be an integer within the supported range.")
     return value
 
@@ -123,7 +123,7 @@ def validate_incident(incident):
 
 def bundle_dict(incident):
     """Export only public inputs, never evaluation labels or hidden family names."""
-    return {"format_version": 1, "description": incident.description,
+    return {"format_version": 1, "domain": getattr(incident, "domain", "revenue"), "description": incident.description,
             "contract": incident.contract, "snapshots": incident.snapshots,
             "previous_sql": incident.previous_sql, "current_sql": incident.current_sql}
 
@@ -142,8 +142,12 @@ def load_bundle(raw):
         data = json.loads(raw)
         if not isinstance(data, dict) or data.get("format_version") != 1:
             raise InputError("Expected incident format_version 1.")
+        from .domains import DOMAINS
+        domain = data.get("domain", "revenue")
+        if domain not in DOMAINS:
+            raise InputError(f"Unknown domain {str(domain)[:30]!r}; use one of {', '.join(DOMAINS)}.")
         incident = Incident("custom", data["description"], data["contract"], data["snapshots"],
-                            data["previous_sql"], data["current_sql"], "unlabeled", "custom")
+                            data["previous_sql"], data["current_sql"], "unlabeled", "custom", domain)
         return validate_incident(incident)
     except (UnicodeError, ValueError, TypeError, KeyError, RecursionError) as exc:
         if isinstance(exc, InputError):
@@ -151,26 +155,39 @@ def load_bundle(raw):
         raise InputError("Invalid incident JSON. Use the downloadable template and supported schema.") from None
 
 
-def load_csv(raw, table):
+def _domain(domain):
+    from .domains import get
+    return domain if hasattr(domain, "fact") else get(domain)
+
+
+def load_csv(raw, table, domain=None):
+    """Load a fact ("orders") or dimension ("customers") table written in the domain's own vocabulary."""
+    d = _domain(domain)
     if table not in {"orders", "customers"} or not isinstance(raw, bytes) or len(raw) > MAX_BYTES:
         raise InputError("Provide a supported CSV table of at most 32 MiB.")
     try:
         reader = csv.DictReader(io.StringIO(raw.decode("utf-8-sig")))
-        columns = ORDER_COLUMNS if table == "orders" else CUSTOMER_COLUMNS
+        columns = d.fact_columns if table == "orders" else d.dim_columns
+        internal = ORDER_COLUMNS if table == "orders" else CUSTOMER_COLUMNS
         if reader.fieldnames != columns:
             raise InputError(f"CSV header must be {','.join(columns)}.")
         rows = []
-        integer_columns = {"order_id", "customer_id", "revenue_cents"}
+        integer_columns = {d.key, d.member, d.value}
         for line, row in enumerate(reader, start=2):
             if len(rows) >= MAX_ROWS:
                 raise InputError(f"CSV has more than {MAX_ROWS:,} rows.")
             if None in row or any(value is None for value in row.values()):
                 raise InputError(f"CSV line {line}: expected {len(columns)} comma-separated values.")
             try:
-                rows.append({key: int(value) if key in integer_columns else value for key, value in row.items()})
+                parsed = {key: int(value) if key in integer_columns else value for key, value in row.items()}
             except ValueError:
                 bad = next(k for k in integer_columns if k in row and not str(row[k]).lstrip("-").isdigit())
                 raise InputError(f"CSV line {line}: {bad} must be a whole number (got {str(row[bad])[:20]!r}).") from None
+            mapped = {name: parsed[shown] for name, shown in zip(internal, columns)}
+            if table == "orders":
+                mapped["status"] = d.internal_status(mapped["status"])
+                mapped["kind"] = d.internal_kind(mapped["kind"])
+            rows.append(mapped)
         snapshot = {"orders": rows if table == "orders" else [],
                     "customers": rows if table == "customers" else []}
         return validate_snapshot(snapshot)[table]
@@ -183,6 +200,8 @@ def load_csv(raw, table):
 def snapshot_csv(incident, snapshot, table):
     output = io.StringIO(newline="")
     writer = csv.writer(output, lineterminator="\n")
-    writer.writerow(ORDER_COLUMNS if table == "orders" else CUSTOMER_COLUMNS)
-    writer.writerows(incident.snapshots[snapshot][table])
+    d = _domain(getattr(incident, "domain", "revenue"))
+    writer.writerow(d.fact_columns if table == "orders" else d.dim_columns)
+    rows = incident.snapshots[snapshot][table]
+    writer.writerows([d.translate_fact(row) for row in rows] if table == "orders" else rows)
     return output.getvalue()

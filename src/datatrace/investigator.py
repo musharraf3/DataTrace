@@ -9,11 +9,13 @@ from .runner import QueryRejected, QueryRunner
 class Investigation:
     def __init__(self, incident):
         from .inputs import validate_incident
+        from .domains import get
         self.incident = validate_incident(incident)
+        self.domain = get(getattr(self.incident, "domain", "revenue"))
         self.runners = {}
         try:
             for name, data in incident.snapshots.items():
-                self.runners[name] = QueryRunner(data)
+                self.runners[name] = QueryRunner(data, domain=self.domain)
         except Exception:
             self.close()
             raise
@@ -41,8 +43,9 @@ class Investigation:
         for version, sql in [("previous", self.incident.previous_sql), ("current", self.incident.current_sql)]:
             for snapshot in ["previous", "current"]:
                 evidence = self.runners[snapshot].query(sql, max_rows=200000)
-                if evidence["columns"] != ["order_id", "revenue_cents"] or evidence["truncated"]:
-                    raise QueryRejected("Replay metric must return complete order_id, revenue_cents rows.")
+                d = self.domain
+                if evidence["columns"] != [d.key, d.value] or evidence["truncated"]:
+                    raise QueryRejected(f"Replay metric must return complete {d.key}, {d.value} rows.")
                 if any(type(row[0]) is not int or type(row[1]) is not int for row in evidence["rows"]):
                     raise QueryRejected("Metric order IDs and amounts must be integer values.")
                 complete = evidence["rows"]
@@ -79,8 +82,8 @@ class Investigation:
         public_result = {**result, "rows": complete[:100], "total_row_count": len(complete),
                          "truncated": result["truncated"] or len(complete) > 100}
         self.evidence.append(public_result)
-        if result["columns"] != ["order_id", "revenue_cents"] or result["truncated"]:
-            return {"verified": False, "reason": "Expected complete order_id, revenue_cents rows.",
+        if result["columns"] != [self.domain.key, self.domain.value] or result["truncated"]:
+            return {"verified": False, "reason": f"Expected complete {self.domain.key}, {self.domain.value} rows.",
                     "evidence_id": result["evidence_id"]}
         if any(len(row) != 2 or type(row[0]) is not int or type(row[1]) is not int for row in result["rows"]):
             return {"verified": False, "reason": "Order IDs and revenue must be integer values.",
@@ -93,8 +96,8 @@ class Investigation:
                 "unexpected_row_count": sum((actual - expected).values()),
                 "missing_rows": [list(row) for row in list((expected - actual).elements())[:100]],
                 "unexpected_rows": [list(row) for row in list((actual - expected).elements())[:100]],
-                "reason": "Complete order/value multiset matches the metric contract." if actual == expected
-                          else "Candidate violates order coverage, uniqueness, or per-order revenue."}
+                "reason": f"Complete {self.domain.item}/value multiset matches the metric contract." if actual == expected
+                          else f"Candidate violates {self.domain.item} coverage, uniqueness, or per-{self.domain.item} amounts."}
 
     def _contract_rows(self, snapshot):
         contract = self.incident.contract
@@ -145,10 +148,11 @@ def offline_walkthrough(incident):
     try:
         replay = session.replay()
         reconciliation = session.reconcile(replay)
-        session.query("current", "SELECT customer_id, COUNT(*) AS rows_per_customer FROM customers "
-                      "GROUP BY customer_id HAVING COUNT(*) > 1")
-        session.query("current", "SELECT o.order_id FROM orders o LEFT JOIN customers c "
-                      "ON o.customer_id = c.customer_id WHERE c.customer_id IS NULL")
+        d = session.domain
+        session.query("current", f"SELECT {d.member}, COUNT(*) AS rows_per_{d.member_noun} FROM {d.dim} "
+                      f"GROUP BY {d.member} HAVING COUNT(*) > 1")
+        session.query("current", f"SELECT f.{d.key} FROM {d.fact} f LEFT JOIN {d.dim} m "
+                      f"ON f.{d.member} = m.{d.member} WHERE m.{d.member} IS NULL")
         if incident.contract["refund_policy"] is None:
             classification = "insufficient_evidence"
             summary = "Refund treatment is unspecified. Clarify whether paid refunds reduce this metric before proposing a repair."
@@ -159,7 +163,7 @@ def offline_walkthrough(incident):
             if not validation["verified"]:
                 classification = "mixed_change" if data_changed else "calculation_defect"
                 summary = "The current calculation violates the metric contract. Inspect the replay and per-order differences."
-                correction = canonical_sql(incident.contract)
+                correction = canonical_sql(incident.contract, session.domain)
                 validation = session.verify(correction)
             else:
                 classification = "genuine_change"

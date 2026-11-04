@@ -10,27 +10,26 @@
   "model": "muse-spark-1.3",
   "model_classification": "mixed_change",
   "model_correction_sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
-  "model_summary": "Reported revenue rose $189,317 to $318,362 (+$129,045). Real paid November growth to $304,397 (+$115,080) is genuine, including strong Nov 27 ($27,698) and Nov 30 ($29,184). The remaining +$13,966 is a join defect: migrated CRM duplicates double-counted 275 orders (+$25,521), partly offset by INNER JOIN dropping 131 unmatched-customer orders (-$11,555).",
+  "model_summary": "Revenue rose from $189,316.83 to $318,362.28 (+$129,045.45). Most is real: correct November paid revenue on current data is $304,396.67 (up $115,079.84), including $106,760.98 from 1,077 orders after Nov 24. The rest is a join bug: the new INNER JOIN to customers adds $25,520.52 of duplicates while dropping $11,555.91 of 131 unmatched orders, for a net overstatement of $13,965.61.",
   "consistency_issues": [],
   "classification": "mixed_change",
-  "summary": "Reported revenue rose $189,317 to $318,362 (+$129,045). Real paid November growth to $304,397 (+$115,080) is genuine, including strong Nov 27 ($27,698) and Nov 30 ($29,184). The remaining +$13,966 is a join defect: migrated CRM duplicates double-counted 275 orders (+$25,521), partly offset by INNER JOIN dropping 131 unmatched-customer orders (-$11,555).",
-  "root_cause": "INNER JOIN to migrated customers table both fanouts on 126 duplicate customer_ids and drops unmatched orders, violating one-row-per-order and all-orders coverage.",
+  "summary": "Revenue rose from $189,316.83 to $318,362.28 (+$129,045.45). Most is real: correct November paid revenue on current data is $304,396.67 (up $115,079.84), including $106,760.98 from 1,077 orders after Nov 24. The rest is a join bug: the new INNER JOIN to customers adds $25,520.52 of duplicates while dropping $11,555.91 of 131 unmatched orders, for a net overstatement of $13,965.61.",
+  "root_cause": "INNER JOIN to migrated customers table with 126 duplicate customer_ids fans out 275 order rows and drops 131 unmatched orders, violating one-row-per-order and all-orders coverage.",
   "evidence_ids": [
-   "E1",
    "E2",
    "E4",
    "E5",
+   "E6",
    "E7",
+   "E8",
    "E10",
    "E11",
-   "E12",
-   "E14",
-   "E15"
+   "E12"
   ],
   "correction_sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
   "validation": {
    "verified": true,
-   "evidence_id": "E16",
+   "evidence_id": "E13",
    "expected_revenue_cents": 30439667,
    "actual_revenue_cents": 30439667,
    "missing_row_count": 0,
@@ -1290,7 +1289,7 @@
      ]
     ],
     "truncated": true,
-    "elapsed_ms": 94.0,
+    "elapsed_ms": 0.0,
     "evidence_id": "E1",
     "snapshot": "previous",
     "total_row_count": 1995,
@@ -1705,7 +1704,7 @@
      ]
     ],
     "truncated": true,
-    "elapsed_ms": 156.0,
+    "elapsed_ms": 16.0,
     "evidence_id": "E2",
     "snapshot": "current",
     "total_row_count": 3153,
@@ -2120,7 +2119,7 @@
      ]
     ],
     "truncated": true,
-    "elapsed_ms": 94.0,
+    "elapsed_ms": 0.0,
     "evidence_id": "E3",
     "snapshot": "previous",
     "total_row_count": 1922,
@@ -2535,58 +2534,24 @@
      ]
     ],
     "truncated": true,
-    "elapsed_ms": 156.0,
+    "elapsed_ms": 0.0,
     "evidence_id": "E4",
     "snapshot": "current",
     "total_row_count": 3297,
     "revenue_cents": 31836228
    },
    {
-    "sql": "SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id HAVING n > 1 ORDER BY n DESC LIMIT 10",
+    "sql": "SELECT COUNT(*) AS cust_rows, COUNT(DISTINCT customer_id) AS distinct_ids, COUNT(*) - COUNT(DISTINCT customer_id) AS extra_rows FROM customers",
     "columns": [
-     "customer_id",
-     "n"
+     "cust_rows",
+     "distinct_ids",
+     "extra_rows"
     ],
     "rows": [
      [
-      1394,
-      2
-     ],
-     [
-      1383,
-      2
-     ],
-     [
-      1364,
-      2
-     ],
-     [
-      1363,
-      2
-     ],
-     [
-      1353,
-      2
-     ],
-     [
-      1351,
-      2
-     ],
-     [
-      1332,
-      2
-     ],
-     [
-      1326,
-      2
-     ],
-     [
-      1301,
-      2
-     ],
-     [
-      1296,
-      2
+      1526,
+      1400,
+      126
      ]
     ],
     "truncated": false,
@@ -2595,16 +2560,21 @@
     "snapshot": "current"
    },
    {
-    "sql": "SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id HAVING n > 1 ORDER BY n DESC LIMIT 10",
+    "sql": "SELECT COUNT(*) AS dup_customer_ids, SUM(cnt - 1) AS extra_rows FROM (SELECT customer_id, COUNT(*) AS cnt FROM customers GROUP BY customer_id HAVING COUNT(*) > 1)",
     "columns": [
-     "customer_id",
-     "n"
+     "dup_customer_ids",
+     "extra_rows"
     ],
-    "rows": [],
+    "rows": [
+     [
+      126,
+      126
+     ]
+    ],
     "truncated": false,
     "elapsed_ms": 0.0,
     "evidence_id": "E6",
-    "snapshot": "previous"
+    "snapshot": "current"
    },
    {
     "sql": "SELECT COUNT(*) AS unmatched_orders, SUM(o.revenue_cents) AS unmatched_cents FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' AND c.customer_id IS NULL",
@@ -2619,131 +2589,127 @@
      ]
     ],
     "truncated": false,
-    "elapsed_ms": 0.0,
+    "elapsed_ms": 16.0,
     "evidence_id": "E7",
     "snapshot": "current"
    },
    {
-    "sql": "SELECT COUNT(*) AS unmatched_orders, SUM(o.revenue_cents) AS unmatched_cents FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' AND c.customer_id IS NULL",
+    "sql": "SELECT COUNT(*) AS join_rows, COUNT(DISTINCT o.order_id) AS distinct_orders, SUM(o.revenue_cents) AS join_sum FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund'",
     "columns": [
-     "unmatched_orders",
-     "unmatched_cents"
+     "join_rows",
+     "distinct_orders",
+     "join_sum"
     ],
     "rows": [
      [
-      73,
-      704452
+      3297,
+      3022,
+      31836228
      ]
     ],
     "truncated": false,
-    "elapsed_ms": 15.0,
+    "elapsed_ms": 0.0,
     "evidence_id": "E8",
-    "snapshot": "previous"
+    "snapshot": "current"
    },
    {
-    "sql": "SELECT o.order_id, COUNT(*) AS matches FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY o.order_id HAVING matches > 1 ORDER BY matches DESC LIMIT 10",
+    "sql": "SELECT o.order_id, o.revenue_cents, COUNT(*) AS dup_n FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY o.order_id HAVING COUNT(*) > 1 ORDER BY COUNT(*) DESC LIMIT 10",
     "columns": [
      "order_id",
-     "matches"
+     "revenue_cents",
+     "dup_n"
     ],
     "rows": [
      [
       103906,
+      4287,
       2
      ],
      [
       103883,
+      6306,
       2
      ],
      [
       103880,
+      2990,
       2
      ],
      [
       103878,
+      6818,
       2
      ],
      [
       103859,
+      15027,
       2
      ],
      [
       103841,
+      13711,
       2
      ],
      [
       103832,
+      23438,
       2
      ],
      [
       103813,
+      9593,
       2
      ],
      [
       103805,
+      20960,
       2
      ],
      [
       103800,
+      11703,
       2
      ]
     ],
     "truncated": false,
-    "elapsed_ms": 0.0,
+    "elapsed_ms": 15.0,
     "evidence_id": "E9",
     "snapshot": "current"
    },
    {
-    "sql": "SELECT status, kind, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY status, kind ORDER BY status, kind LIMIT 20",
+    "sql": "SELECT SUM((cnt - 1) * revenue_cents) AS dup_excess_cents, SUM(CASE WHEN c_null = 1 THEN revenue_cents ELSE 0 END) AS unmatched_cents FROM (SELECT o.order_id, o.revenue_cents, COUNT(c.customer_id) AS cnt, CASE WHEN COUNT(c.customer_id) = 0 THEN 1 ELSE 0 END AS c_null FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY o.order_id, o.revenue_cents)",
     "columns": [
-     "status",
-     "kind",
-     "n",
-     "cents"
+     "dup_excess_cents",
+     "unmatched_cents"
     ],
     "rows": [
      [
-      "cancelled",
-      "sale",
-      162,
-      1797428
-     ],
-     [
-      "paid",
-      "refund",
-      104,
-      -851190
-     ],
-     [
-      "paid",
-      "sale",
-      3153,
-      30439667
-     ],
-     [
-      "pending",
-      "sale",
-      146,
-      1582488
+      1396561,
+      1155491
      ]
     ],
     "truncated": false,
-    "elapsed_ms": 0.0,
+    "elapsed_ms": 16.0,
     "evidence_id": "E10",
     "snapshot": "current"
    },
    {
-    "sql": "SELECT COUNT(*) AS dup_order_rows, COUNT(DISTINCT o.order_id) AS dup_orders, SUM(o.revenue_cents) AS dup_revenue_one_copy FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' AND o.customer_id IN (SELECT customer_id FROM customers GROUP BY customer_id HAVING COUNT(*) > 1)",
+    "sql": "SELECT CASE WHEN order_date <= '2026-11-24' THEN 'through_Nov24' ELSE 'after_Nov24' END AS period, COUNT(*) AS orders, SUM(revenue_cents) AS cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY 1 ORDER BY 1",
     "columns": [
-     "dup_order_rows",
-     "dup_orders",
-     "dup_revenue_one_copy"
+     "period",
+     "orders",
+     "cents"
     ],
     "rows": [
      [
-      550,
-      275,
-      5104104
+      "after_Nov24",
+      1077,
+      10676098
+     ],
+     [
+      "through_Nov24",
+      2076,
+      19763569
      ]
     ],
     "truncated": false,
@@ -2752,116 +2718,6 @@
     "snapshot": "current"
    },
    {
-    "sql": "SELECT order_date, COUNT(*) AS n, SUM(CASE WHEN status='paid' AND kind<>'refund' THEN revenue_cents ELSE 0 END) AS paid_cents FROM orders WHERE order_date >= '2026-11-24' AND order_date < '2026-12-01' GROUP BY order_date ORDER BY order_date",
-    "columns": [
-     "order_date",
-     "n",
-     "paid_cents"
-    ],
-    "rows": [
-     [
-      "2026-11-24",
-      103,
-      890998
-     ],
-     [
-      "2026-11-25",
-      106,
-      1048673
-     ],
-     [
-      "2026-11-26",
-      74,
-      664359
-     ],
-     [
-      "2026-11-27",
-      343,
-      2769813
-     ],
-     [
-      "2026-11-28",
-      167,
-      1555451
-     ],
-     [
-      "2026-11-29",
-      218,
-      1719429
-     ],
-     [
-      "2026-11-30",
-      339,
-      2918373
-     ]
-    ],
-    "truncated": false,
-    "elapsed_ms": 0.0,
-    "evidence_id": "E12",
-    "snapshot": "current"
-   },
-   {
-    "sql": "SELECT customer_id, region, COUNT(*) AS n FROM customers WHERE customer_id IN (1394, 1383, 1364) GROUP BY customer_id, region ORDER BY customer_id",
-    "columns": [
-     "customer_id",
-     "region",
-     "n"
-    ],
-    "rows": [
-     [
-      1364,
-      "APAC",
-      1
-     ],
-     [
-      1364,
-      "APAC (migrated)",
-      1
-     ],
-     [
-      1383,
-      "EMEA",
-      1
-     ],
-     [
-      1383,
-      "EMEA (migrated)",
-      1
-     ],
-     [
-      1394,
-      "EMEA",
-      1
-     ],
-     [
-      1394,
-      "EMEA (migrated)",
-      1
-     ]
-    ],
-    "truncated": false,
-    "elapsed_ms": 0.0,
-    "evidence_id": "E13",
-    "snapshot": "current"
-   },
-   {
-    "sql": "SELECT COUNT(*) AS dup_key_count, SUM(n) AS extra_customer_rows FROM (SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id HAVING n > 1)",
-    "columns": [
-     "dup_key_count",
-     "extra_customer_rows"
-    ],
-    "rows": [
-     [
-      126,
-      252
-     ]
-    ],
-    "truncated": false,
-    "elapsed_ms": 0.0,
-    "evidence_id": "E14",
-    "snapshot": "current"
-   },
-   {
     "sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
     "columns": [
      "order_id",
@@ -3270,8 +3126,8 @@
      ]
     ],
     "truncated": true,
-    "elapsed_ms": 16.0,
-    "evidence_id": "E15",
+    "elapsed_ms": 0.0,
+    "evidence_id": "E12",
     "snapshot": "current",
     "total_row_count": 3153
    },
@@ -3684,8 +3540,8 @@
      ]
     ],
     "truncated": true,
-    "elapsed_ms": 15.0,
-    "evidence_id": "E16",
+    "elapsed_ms": 0.0,
+    "evidence_id": "E13",
     "snapshot": "current",
     "total_row_count": 3153
    }
@@ -3693,53 +3549,19 @@
   "trace": [
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"test duplicate customer keys causing fanout\",\"snapshot\":\"current\",\"sql\":\"SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id HAVING n > 1 ORDER BY n DESC LIMIT 10\"}",
+    "arguments": "{\"purpose\":\"Test duplicate customer keys causing fanout\",\"snapshot\":\"current\",\"sql\":\"SELECT COUNT(*) AS cust_rows, COUNT(DISTINCT customer_id) AS distinct_ids, COUNT(*) - COUNT(DISTINCT customer_id) AS extra_rows FROM customers\"}",
     "result": {
-     "sql": "SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id HAVING n > 1 ORDER BY n DESC LIMIT 10",
+     "sql": "SELECT COUNT(*) AS cust_rows, COUNT(DISTINCT customer_id) AS distinct_ids, COUNT(*) - COUNT(DISTINCT customer_id) AS extra_rows FROM customers",
      "columns": [
-      "customer_id",
-      "n"
+      "cust_rows",
+      "distinct_ids",
+      "extra_rows"
      ],
      "rows": [
       [
-       1394,
-       2
-      ],
-      [
-       1383,
-       2
-      ],
-      [
-       1364,
-       2
-      ],
-      [
-       1363,
-       2
-      ],
-      [
-       1353,
-       2
-      ],
-      [
-       1351,
-       2
-      ],
-      [
-       1332,
-       2
-      ],
-      [
-       1326,
-       2
-      ],
-      [
-       1301,
-       2
-      ],
-      [
-       1296,
-       2
+       1526,
+       1400,
+       126
       ]
      ],
      "truncated": false,
@@ -3750,23 +3572,28 @@
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"test duplicate customer keys in previous snapshot\",\"snapshot\":\"previous\",\"sql\":\"SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id HAVING n > 1 ORDER BY n DESC LIMIT 10\"}",
+    "arguments": "{\"purpose\":\"Count duplicated customer_ids in CRM table\",\"snapshot\":\"current\",\"sql\":\"SELECT COUNT(*) AS dup_customer_ids, SUM(cnt - 1) AS extra_rows FROM (SELECT customer_id, COUNT(*) AS cnt FROM customers GROUP BY customer_id HAVING COUNT(*) > 1)\"}",
     "result": {
-     "sql": "SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id HAVING n > 1 ORDER BY n DESC LIMIT 10",
+     "sql": "SELECT COUNT(*) AS dup_customer_ids, SUM(cnt - 1) AS extra_rows FROM (SELECT customer_id, COUNT(*) AS cnt FROM customers GROUP BY customer_id HAVING COUNT(*) > 1)",
      "columns": [
-      "customer_id",
-      "n"
+      "dup_customer_ids",
+      "extra_rows"
      ],
-     "rows": [],
+     "rows": [
+      [
+       126,
+       126
+      ]
+     ],
      "truncated": false,
      "elapsed_ms": 0.0,
      "evidence_id": "E6",
-     "snapshot": "previous"
+     "snapshot": "current"
     }
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"test inner join drops unmatched customers\",\"snapshot\":\"current\",\"sql\":\"SELECT COUNT(*) AS unmatched_orders, SUM(o.revenue_cents) AS unmatched_cents FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' AND c.customer_id IS NULL\"}",
+    "arguments": "{\"purpose\":\"Measure unmatched paid Nov orders dropped by inner join\",\"snapshot\":\"current\",\"sql\":\"SELECT COUNT(*) AS unmatched_orders, SUM(o.revenue_cents) AS unmatched_cents FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' AND c.customer_id IS NULL\"}",
     "result": {
      "sql": "SELECT COUNT(*) AS unmatched_orders, SUM(o.revenue_cents) AS unmatched_cents FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' AND c.customer_id IS NULL",
      "columns": [
@@ -3780,147 +3607,143 @@
       ]
      ],
      "truncated": false,
-     "elapsed_ms": 0.0,
+     "elapsed_ms": 16.0,
      "evidence_id": "E7",
      "snapshot": "current"
     }
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"test unmatched customer loss previously\",\"snapshot\":\"previous\",\"sql\":\"SELECT COUNT(*) AS unmatched_orders, SUM(o.revenue_cents) AS unmatched_cents FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' AND c.customer_id IS NULL\"}",
+    "arguments": "{\"purpose\":\"Quantify duplicated order revenue from inner join\",\"snapshot\":\"current\",\"sql\":\"SELECT COUNT(*) AS join_rows, COUNT(DISTINCT o.order_id) AS distinct_orders, SUM(o.revenue_cents) AS join_sum FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund'\"}",
     "result": {
-     "sql": "SELECT COUNT(*) AS unmatched_orders, SUM(o.revenue_cents) AS unmatched_cents FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' AND c.customer_id IS NULL",
+     "sql": "SELECT COUNT(*) AS join_rows, COUNT(DISTINCT o.order_id) AS distinct_orders, SUM(o.revenue_cents) AS join_sum FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund'",
      "columns": [
-      "unmatched_orders",
-      "unmatched_cents"
+      "join_rows",
+      "distinct_orders",
+      "join_sum"
      ],
      "rows": [
       [
-       73,
-       704452
-      ]
-     ],
-     "truncated": false,
-     "elapsed_ms": 15.0,
-     "evidence_id": "E8",
-     "snapshot": "previous"
-    }
-   },
-   {
-    "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"measure join fanout overcount per order\",\"snapshot\":\"current\",\"sql\":\"SELECT o.order_id, COUNT(*) AS matches FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY o.order_id HAVING matches > 1 ORDER BY matches DESC LIMIT 10\"}",
-    "result": {
-     "sql": "SELECT o.order_id, COUNT(*) AS matches FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY o.order_id HAVING matches > 1 ORDER BY matches DESC LIMIT 10",
-     "columns": [
-      "order_id",
-      "matches"
-     ],
-     "rows": [
-      [
-       103906,
-       2
-      ],
-      [
-       103883,
-       2
-      ],
-      [
-       103880,
-       2
-      ],
-      [
-       103878,
-       2
-      ],
-      [
-       103859,
-       2
-      ],
-      [
-       103841,
-       2
-      ],
-      [
-       103832,
-       2
-      ],
-      [
-       103813,
-       2
-      ],
-      [
-       103805,
-       2
-      ],
-      [
-       103800,
-       2
+       3297,
+       3022,
+       31836228
       ]
      ],
      "truncated": false,
      "elapsed_ms": 0.0,
+     "evidence_id": "E8",
+     "snapshot": "current"
+    }
+   },
+   {
+    "tool": "query_snapshot",
+    "arguments": "{\"purpose\":\"Show sample duplicated order_ids inflating total\",\"snapshot\":\"current\",\"sql\":\"SELECT o.order_id, o.revenue_cents, COUNT(*) AS dup_n FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY o.order_id HAVING COUNT(*) > 1 ORDER BY COUNT(*) DESC LIMIT 10\"}",
+    "result": {
+     "sql": "SELECT o.order_id, o.revenue_cents, COUNT(*) AS dup_n FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY o.order_id HAVING COUNT(*) > 1 ORDER BY COUNT(*) DESC LIMIT 10",
+     "columns": [
+      "order_id",
+      "revenue_cents",
+      "dup_n"
+     ],
+     "rows": [
+      [
+       103906,
+       4287,
+       2
+      ],
+      [
+       103883,
+       6306,
+       2
+      ],
+      [
+       103880,
+       2990,
+       2
+      ],
+      [
+       103878,
+       6818,
+       2
+      ],
+      [
+       103859,
+       15027,
+       2
+      ],
+      [
+       103841,
+       13711,
+       2
+      ],
+      [
+       103832,
+       23438,
+       2
+      ],
+      [
+       103813,
+       9593,
+       2
+      ],
+      [
+       103805,
+       20960,
+       2
+      ],
+      [
+       103800,
+       11703,
+       2
+      ]
+     ],
+     "truncated": false,
+     "elapsed_ms": 15.0,
      "evidence_id": "E9",
      "snapshot": "current"
     }
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"check date status refund boundaries intact\",\"snapshot\":\"current\",\"sql\":\"SELECT status, kind, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY status, kind ORDER BY status, kind LIMIT 20\"}",
+    "arguments": "{\"purpose\":\"Break down net join error into duplicates vs dropped\",\"snapshot\":\"current\",\"sql\":\"SELECT SUM((cnt - 1) * revenue_cents) AS dup_excess_cents, SUM(CASE WHEN c_null = 1 THEN revenue_cents ELSE 0 END) AS unmatched_cents FROM (SELECT o.order_id, o.revenue_cents, COUNT(c.customer_id) AS cnt, CASE WHEN COUNT(c.customer_id) = 0 THEN 1 ELSE 0 END AS c_null FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY o.order_id, o.revenue_cents)\"}",
     "result": {
-     "sql": "SELECT status, kind, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY status, kind ORDER BY status, kind LIMIT 20",
+     "sql": "SELECT SUM((cnt - 1) * revenue_cents) AS dup_excess_cents, SUM(CASE WHEN c_null = 1 THEN revenue_cents ELSE 0 END) AS unmatched_cents FROM (SELECT o.order_id, o.revenue_cents, COUNT(c.customer_id) AS cnt, CASE WHEN COUNT(c.customer_id) = 0 THEN 1 ELSE 0 END AS c_null FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY o.order_id, o.revenue_cents)",
      "columns": [
-      "status",
-      "kind",
-      "n",
-      "cents"
+      "dup_excess_cents",
+      "unmatched_cents"
      ],
      "rows": [
       [
-       "cancelled",
-       "sale",
-       162,
-       1797428
-      ],
-      [
-       "paid",
-       "refund",
-       104,
-       -851190
-      ],
-      [
-       "paid",
-       "sale",
-       3153,
-       30439667
-      ],
-      [
-       "pending",
-       "sale",
-       146,
-       1582488
+       1396561,
+       1155491
       ]
      ],
      "truncated": false,
-     "elapsed_ms": 0.0,
+     "elapsed_ms": 16.0,
      "evidence_id": "E10",
      "snapshot": "current"
     }
    },
    {
     "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"quantify total fanout overcount amount\",\"snapshot\":\"current\",\"sql\":\"SELECT COUNT(*) AS dup_order_rows, COUNT(DISTINCT o.order_id) AS dup_orders, SUM(o.revenue_cents) AS dup_revenue_one_copy FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' AND o.customer_id IN (SELECT customer_id FROM customers GROUP BY customer_id HAVING COUNT(*) > 1)\"}",
+    "arguments": "{\"purpose\":\"Prove genuine growth from late-November orders\",\"snapshot\":\"current\",\"sql\":\"SELECT CASE WHEN order_date <= '2026-11-24' THEN 'through_Nov24' ELSE 'after_Nov24' END AS period, COUNT(*) AS orders, SUM(revenue_cents) AS cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY 1 ORDER BY 1\"}",
     "result": {
-     "sql": "SELECT COUNT(*) AS dup_order_rows, COUNT(DISTINCT o.order_id) AS dup_orders, SUM(o.revenue_cents) AS dup_revenue_one_copy FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' AND o.customer_id IN (SELECT customer_id FROM customers GROUP BY customer_id HAVING COUNT(*) > 1)",
+     "sql": "SELECT CASE WHEN order_date <= '2026-11-24' THEN 'through_Nov24' ELSE 'after_Nov24' END AS period, COUNT(*) AS orders, SUM(revenue_cents) AS cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY 1 ORDER BY 1",
      "columns": [
-      "dup_order_rows",
-      "dup_orders",
-      "dup_revenue_one_copy"
+      "period",
+      "orders",
+      "cents"
      ],
      "rows": [
       [
-       550,
-       275,
-       5104104
+       "after_Nov24",
+       1077,
+       10676098
+      ],
+      [
+       "through_Nov24",
+       2076,
+       19763569
       ]
      ],
      "truncated": false,
@@ -3930,133 +3753,11 @@
     }
    },
    {
-    "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"show late-November genuine growth per day\",\"snapshot\":\"current\",\"sql\":\"SELECT order_date, COUNT(*) AS n, SUM(CASE WHEN status='paid' AND kind<>'refund' THEN revenue_cents ELSE 0 END) AS paid_cents FROM orders WHERE order_date >= '2026-11-24' AND order_date < '2026-12-01' GROUP BY order_date ORDER BY order_date\"}",
-    "result": {
-     "sql": "SELECT order_date, COUNT(*) AS n, SUM(CASE WHEN status='paid' AND kind<>'refund' THEN revenue_cents ELSE 0 END) AS paid_cents FROM orders WHERE order_date >= '2026-11-24' AND order_date < '2026-12-01' GROUP BY order_date ORDER BY order_date",
-     "columns": [
-      "order_date",
-      "n",
-      "paid_cents"
-     ],
-     "rows": [
-      [
-       "2026-11-24",
-       103,
-       890998
-      ],
-      [
-       "2026-11-25",
-       106,
-       1048673
-      ],
-      [
-       "2026-11-26",
-       74,
-       664359
-      ],
-      [
-       "2026-11-27",
-       343,
-       2769813
-      ],
-      [
-       "2026-11-28",
-       167,
-       1555451
-      ],
-      [
-       "2026-11-29",
-       218,
-       1719429
-      ],
-      [
-       "2026-11-30",
-       339,
-       2918373
-      ]
-     ],
-     "truncated": false,
-     "elapsed_ms": 0.0,
-     "evidence_id": "E12",
-     "snapshot": "current"
-    }
-   },
-   {
-    "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"inspect duplicate customer region values\",\"snapshot\":\"current\",\"sql\":\"SELECT customer_id, region, COUNT(*) AS n FROM customers WHERE customer_id IN (1394, 1383, 1364) GROUP BY customer_id, region ORDER BY customer_id\"}",
-    "result": {
-     "sql": "SELECT customer_id, region, COUNT(*) AS n FROM customers WHERE customer_id IN (1394, 1383, 1364) GROUP BY customer_id, region ORDER BY customer_id",
-     "columns": [
-      "customer_id",
-      "region",
-      "n"
-     ],
-     "rows": [
-      [
-       1364,
-       "APAC",
-       1
-      ],
-      [
-       1364,
-       "APAC (migrated)",
-       1
-      ],
-      [
-       1383,
-       "EMEA",
-       1
-      ],
-      [
-       1383,
-       "EMEA (migrated)",
-       1
-      ],
-      [
-       1394,
-       "EMEA",
-       1
-      ],
-      [
-       1394,
-       "EMEA (migrated)",
-       1
-      ]
-     ],
-     "truncated": false,
-     "elapsed_ms": 0.0,
-     "evidence_id": "E13",
-     "snapshot": "current"
-    }
-   },
-   {
-    "tool": "query_snapshot",
-    "arguments": "{\"purpose\":\"count total duplicate customer keys\",\"snapshot\":\"current\",\"sql\":\"SELECT COUNT(*) AS dup_key_count, SUM(n) AS extra_customer_rows FROM (SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id HAVING n > 1)\"}",
-    "result": {
-     "sql": "SELECT COUNT(*) AS dup_key_count, SUM(n) AS extra_customer_rows FROM (SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id HAVING n > 1)",
-     "columns": [
-      "dup_key_count",
-      "extra_customer_rows"
-     ],
-     "rows": [
-      [
-       126,
-       252
-      ]
-     ],
-     "truncated": false,
-     "elapsed_ms": 0.0,
-     "evidence_id": "E14",
-     "snapshot": "current"
-    }
-   },
-   {
     "tool": "verify_correction",
-    "arguments": "{\"purpose\":\"verify revert to orders-only restores contract\",\"sql\":\"SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'\"}",
+    "arguments": "{\"purpose\":\"Verify corrected SQL matches contract reference\",\"sql\":\"SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'\"}",
     "result": {
      "verified": true,
-     "evidence_id": "E15",
+     "evidence_id": "E12",
      "expected_revenue_cents": 30439667,
      "actual_revenue_cents": 30439667,
      "missing_row_count": 0,
@@ -4068,16 +3769,16 @@
    }
   ],
   "usage": {
-   "input_tokens": 21378,
-   "output_tokens": 7910,
+   "input_tokens": 19874,
+   "output_tokens": 8814,
    "model_requests": 4,
-   "tool_calls": 11,
+   "tool_calls": 8,
    "review_requests": 1
   },
   "events": [
    {
     "type": "start",
-    "t": 0.5,
+    "t": 0.02,
     "model": "muse-spark-1.3",
     "replay": [
      {
@@ -4121,64 +3822,46 @@
    },
    {
     "type": "thinking",
-    "t": 12.06,
-    "text": "Analyzing SQL snapshot discrepancies and duplicate keys causing overcounted rows and amounts."
+    "t": 15.06,
+    "text": "Analyzing SQL query results to decompose revenue increase into real data growth and a JOIN calculation defect."
    },
    {
     "type": "thinking",
-    "t": 12.06,
-    "text": "Designing bounded diagnostic queries to isolate join loss and duplication fanout."
+    "t": 15.06,
+    "text": "Formulating parallel diagnostic queries to test join cardinality, unmatched rows, and duplicate keys."
    },
    {
     "type": "thinking",
-    "t": 12.06,
-    "text": "Executing parallel SQLite diagnostics to validate mixed_change with duplicate keys and unmatched orders."
+    "t": 15.06,
+    "text": "Extending diagnostics to detect duplicate keys, unmatched joins, and date-boundary shifts."
    },
    {
     "type": "tool_call",
-    "t": 12.06,
+    "t": 15.06,
     "tool": "query_snapshot",
-    "purpose": "test duplicate customer keys causing fanout",
+    "purpose": "Test duplicate customer keys causing fanout",
     "snapshot": "current",
-    "sql": "SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id HAVING n > 1 ORDER BY n DESC LIMIT 10",
+    "sql": "SELECT COUNT(*) AS cust_rows, COUNT(DISTINCT customer_id) AS distinct_ids, COUNT(*) - COUNT(DISTINCT customer_id) AS extra_rows FROM customers",
     "question": null,
-    "call_id": "call_01a1a4bfeaf07799ad5b96636496c85d"
+    "call_id": "call_01a1a58595997182a91b3a6d83df2a16"
    },
    {
     "type": "tool_result",
-    "t": 12.06,
+    "t": 15.06,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4bfeaf07799ad5b96636496c85d",
+    "call_id": "call_01a1a58595997182a91b3a6d83df2a16",
     "result": {
-     "sql": "SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id HAVING n > 1 ORDER BY n DESC LIMIT 10",
+     "sql": "SELECT COUNT(*) AS cust_rows, COUNT(DISTINCT customer_id) AS distinct_ids, COUNT(*) - COUNT(DISTINCT customer_id) AS extra_rows FROM customers",
      "columns": [
-      "customer_id",
-      "n"
+      "cust_rows",
+      "distinct_ids",
+      "extra_rows"
      ],
      "rows": [
       [
-       1394,
-       2
-      ],
-      [
-       1383,
-       2
-      ],
-      [
-       1364,
-       2
-      ],
-      [
-       1363,
-       2
-      ],
-      [
-       1353,
-       2
-      ],
-      [
-       1351,
-       2
+       1526,
+       1400,
+       126
       ]
      ],
      "truncated": false,
@@ -4188,46 +3871,51 @@
    },
    {
     "type": "tool_call",
-    "t": 12.06,
+    "t": 15.06,
     "tool": "query_snapshot",
-    "purpose": "test duplicate customer keys in previous snapshot",
-    "snapshot": "previous",
-    "sql": "SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id HAVING n > 1 ORDER BY n DESC LIMIT 10",
+    "purpose": "Count duplicated customer_ids in CRM table",
+    "snapshot": "current",
+    "sql": "SELECT COUNT(*) AS dup_customer_ids, SUM(cnt - 1) AS extra_rows FROM (SELECT customer_id, COUNT(*) AS cnt FROM customers GROUP BY customer_id HAVING COUNT(*) > 1)",
     "question": null,
-    "call_id": "call_01a1a4bfecc377078cb2eef18f9b9103"
+    "call_id": "call_01a1a585984e757cb56afdeacd13a156"
    },
    {
     "type": "tool_result",
-    "t": 12.06,
+    "t": 15.06,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4bfecc377078cb2eef18f9b9103",
+    "call_id": "call_01a1a585984e757cb56afdeacd13a156",
     "result": {
-     "sql": "SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id HAVING n > 1 ORDER BY n DESC LIMIT 10",
+     "sql": "SELECT COUNT(*) AS dup_customer_ids, SUM(cnt - 1) AS extra_rows FROM (SELECT customer_id, COUNT(*) AS cnt FROM customers GROUP BY customer_id HAVING COUNT(*) > 1)",
      "columns": [
-      "customer_id",
-      "n"
+      "dup_customer_ids",
+      "extra_rows"
      ],
-     "rows": [],
+     "rows": [
+      [
+       126,
+       126
+      ]
+     ],
      "truncated": false,
      "evidence_id": "E6",
-     "snapshot": "previous"
+     "snapshot": "current"
     }
    },
    {
     "type": "tool_call",
-    "t": 12.06,
+    "t": 15.06,
     "tool": "query_snapshot",
-    "purpose": "test inner join drops unmatched customers",
+    "purpose": "Measure unmatched paid Nov orders dropped by inner join",
     "snapshot": "current",
     "sql": "SELECT COUNT(*) AS unmatched_orders, SUM(o.revenue_cents) AS unmatched_cents FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' AND c.customer_id IS NULL",
     "question": null,
-    "call_id": "call_01a1a4bfee7e77cebeaaac7da15e7a04"
+    "call_id": "call_01a1a5859b7971ba819218fc2a1e4b6f"
    },
    {
     "type": "tool_result",
-    "t": 12.06,
+    "t": 15.08,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4bfee7e77cebeaaac7da15e7a04",
+    "call_id": "call_01a1a5859b7971ba819218fc2a1e4b6f",
     "result": {
      "sql": "SELECT COUNT(*) AS unmatched_orders, SUM(o.revenue_cents) AS unmatched_cents FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' AND c.customer_id IS NULL",
      "columns": [
@@ -4247,80 +3935,89 @@
    },
    {
     "type": "tool_call",
-    "t": 12.06,
+    "t": 15.08,
     "tool": "query_snapshot",
-    "purpose": "test unmatched customer loss previously",
-    "snapshot": "previous",
-    "sql": "SELECT COUNT(*) AS unmatched_orders, SUM(o.revenue_cents) AS unmatched_cents FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' AND c.customer_id IS NULL",
+    "purpose": "Quantify duplicated order revenue from inner join",
+    "snapshot": "current",
+    "sql": "SELECT COUNT(*) AS join_rows, COUNT(DISTINCT o.order_id) AS distinct_orders, SUM(o.revenue_cents) AS join_sum FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund'",
     "question": null,
-    "call_id": "call_01a1a4bff1047351b799a9073cbed7b3"
+    "call_id": "call_01a1a5859f0273a28728ad87d1420a02"
    },
    {
     "type": "tool_result",
-    "t": 12.08,
+    "t": 15.08,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4bff1047351b799a9073cbed7b3",
+    "call_id": "call_01a1a5859f0273a28728ad87d1420a02",
     "result": {
-     "sql": "SELECT COUNT(*) AS unmatched_orders, SUM(o.revenue_cents) AS unmatched_cents FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' AND c.customer_id IS NULL",
+     "sql": "SELECT COUNT(*) AS join_rows, COUNT(DISTINCT o.order_id) AS distinct_orders, SUM(o.revenue_cents) AS join_sum FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund'",
      "columns": [
-      "unmatched_orders",
-      "unmatched_cents"
+      "join_rows",
+      "distinct_orders",
+      "join_sum"
      ],
      "rows": [
       [
-       73,
-       704452
+       3297,
+       3022,
+       31836228
       ]
      ],
      "truncated": false,
      "evidence_id": "E8",
-     "snapshot": "previous"
+     "snapshot": "current"
     }
    },
    {
     "type": "tool_call",
-    "t": 12.08,
+    "t": 15.08,
     "tool": "query_snapshot",
-    "purpose": "measure join fanout overcount per order",
+    "purpose": "Show sample duplicated order_ids inflating total",
     "snapshot": "current",
-    "sql": "SELECT o.order_id, COUNT(*) AS matches FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY o.order_id HAVING matches > 1 ORDER BY matches DESC LIMIT 10",
+    "sql": "SELECT o.order_id, o.revenue_cents, COUNT(*) AS dup_n FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY o.order_id HAVING COUNT(*) > 1 ORDER BY COUNT(*) DESC LIMIT 10",
     "question": null,
-    "call_id": "call_01a1a4bff3c5746da4778221f4b7e930"
+    "call_id": "call_01a1a585a2b877ca976a78868b8e749c"
    },
    {
     "type": "tool_result",
-    "t": 12.08,
+    "t": 15.09,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4bff3c5746da4778221f4b7e930",
+    "call_id": "call_01a1a585a2b877ca976a78868b8e749c",
     "result": {
-     "sql": "SELECT o.order_id, COUNT(*) AS matches FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY o.order_id HAVING matches > 1 ORDER BY matches DESC LIMIT 10",
+     "sql": "SELECT o.order_id, o.revenue_cents, COUNT(*) AS dup_n FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY o.order_id HAVING COUNT(*) > 1 ORDER BY COUNT(*) DESC LIMIT 10",
      "columns": [
       "order_id",
-      "matches"
+      "revenue_cents",
+      "dup_n"
      ],
      "rows": [
       [
        103906,
+       4287,
        2
       ],
       [
        103883,
+       6306,
        2
       ],
       [
        103880,
+       2990,
        2
       ],
       [
        103878,
+       6818,
        2
       ],
       [
        103859,
+       15027,
        2
       ],
       [
        103841,
+       13711,
        2
       ]
      ],
@@ -4330,52 +4027,45 @@
     }
    },
    {
+    "type": "thinking",
+    "t": 31.42,
+    "text": "Analyzing SQL results to identify customer join fanout causing row duplication and revenue mismatch."
+   },
+   {
+    "type": "thinking",
+    "t": 31.42,
+    "text": "Quantifying duplicated excess versus unmatched drops and confirming genuine growth from new orders."
+   },
+   {
+    "type": "thinking",
+    "t": 31.42,
+    "text": "Selecting the prior SQL to meet the one-row-per-order contract and scheduling verification before finalizing."
+   },
+   {
     "type": "tool_call",
-    "t": 12.08,
+    "t": 31.42,
     "tool": "query_snapshot",
-    "purpose": "check date status refund boundaries intact",
+    "purpose": "Break down net join error into duplicates vs dropped",
     "snapshot": "current",
-    "sql": "SELECT status, kind, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY status, kind ORDER BY status, kind LIMIT 20",
+    "sql": "SELECT SUM((cnt - 1) * revenue_cents) AS dup_excess_cents, SUM(CASE WHEN c_null = 1 THEN revenue_cents ELSE 0 END) AS unmatched_cents FROM (SELECT o.order_id, o.revenue_cents, COUNT(c.customer_id) AS cnt, CASE WHEN COUNT(c.customer_id) = 0 THEN 1 ELSE 0 END AS c_null FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY o.order_id, o.revenue_cents)",
     "question": null,
-    "call_id": "call_01a1a4bff66e74a59c3aeb49b113a8f8"
+    "call_id": "call_01a1a585d6a2741cbc7e90a1dc302ba5"
    },
    {
     "type": "tool_result",
-    "t": 12.08,
+    "t": 31.44,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4bff66e74a59c3aeb49b113a8f8",
+    "call_id": "call_01a1a585d6a2741cbc7e90a1dc302ba5",
     "result": {
-     "sql": "SELECT status, kind, COUNT(*) AS n, SUM(revenue_cents) AS cents FROM orders WHERE order_date >= '2026-11-01' AND order_date < '2026-12-01' GROUP BY status, kind ORDER BY status, kind LIMIT 20",
+     "sql": "SELECT SUM((cnt - 1) * revenue_cents) AS dup_excess_cents, SUM(CASE WHEN c_null = 1 THEN revenue_cents ELSE 0 END) AS unmatched_cents FROM (SELECT o.order_id, o.revenue_cents, COUNT(c.customer_id) AS cnt, CASE WHEN COUNT(c.customer_id) = 0 THEN 1 ELSE 0 END AS c_null FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' GROUP BY o.order_id, o.revenue_cents)",
      "columns": [
-      "status",
-      "kind",
-      "n",
-      "cents"
+      "dup_excess_cents",
+      "unmatched_cents"
      ],
      "rows": [
       [
-       "cancelled",
-       "sale",
-       162,
-       1797428
-      ],
-      [
-       "paid",
-       "refund",
-       104,
-       -851190
-      ],
-      [
-       "paid",
-       "sale",
-       3153,
-       30439667
-      ],
-      [
-       "pending",
-       "sale",
-       146,
-       1582488
+       1396561,
+       1155491
       ]
      ],
      "truncated": false,
@@ -4384,47 +4074,37 @@
     }
    },
    {
-    "type": "thinking",
-    "t": 31.31,
-    "text": "Analyzing four-way replay results to diagnose the revenue increase and reconcile metric contract changes with SQL and customer join impact."
-   },
-   {
-    "type": "thinking",
-    "t": 31.31,
-    "text": "Quantifying duplicate fanout overcount and late-November order growth to explain the net revenue variance."
-   },
-   {
-    "type": "thinking",
-    "t": 31.31,
-    "text": "Running diagnostic queries to isolate duplicate order fanout and late-November revenue growth."
-   },
-   {
     "type": "tool_call",
-    "t": 31.31,
+    "t": 31.44,
     "tool": "query_snapshot",
-    "purpose": "quantify total fanout overcount amount",
+    "purpose": "Prove genuine growth from late-November orders",
     "snapshot": "current",
-    "sql": "SELECT COUNT(*) AS dup_order_rows, COUNT(DISTINCT o.order_id) AS dup_orders, SUM(o.revenue_cents) AS dup_revenue_one_copy FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' AND o.customer_id IN (SELECT customer_id FROM customers GROUP BY customer_id HAVING COUNT(*) > 1)",
+    "sql": "SELECT CASE WHEN order_date <= '2026-11-24' THEN 'through_Nov24' ELSE 'after_Nov24' END AS period, COUNT(*) AS orders, SUM(revenue_cents) AS cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY 1 ORDER BY 1",
     "question": null,
-    "call_id": "call_01a1a4c02ec377aca903c65af24bc7f3"
+    "call_id": "call_01a1a585dc367434af9ecfdc04416627"
    },
    {
     "type": "tool_result",
-    "t": 31.31,
+    "t": 31.44,
     "tool": "query_snapshot",
-    "call_id": "call_01a1a4c02ec377aca903c65af24bc7f3",
+    "call_id": "call_01a1a585dc367434af9ecfdc04416627",
     "result": {
-     "sql": "SELECT COUNT(*) AS dup_order_rows, COUNT(DISTINCT o.order_id) AS dup_orders, SUM(o.revenue_cents) AS dup_revenue_one_copy FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'paid' AND o.order_date >= '2026-11-01' AND o.order_date < '2026-12-01' AND o.kind <> 'refund' AND o.customer_id IN (SELECT customer_id FROM customers GROUP BY customer_id HAVING COUNT(*) > 1)",
+     "sql": "SELECT CASE WHEN order_date <= '2026-11-24' THEN 'through_Nov24' ELSE 'after_Nov24' END AS period, COUNT(*) AS orders, SUM(revenue_cents) AS cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund' GROUP BY 1 ORDER BY 1",
      "columns": [
-      "dup_order_rows",
-      "dup_orders",
-      "dup_revenue_one_copy"
+      "period",
+      "orders",
+      "cents"
      ],
      "rows": [
       [
-       550,
-       275,
-       5104104
+       "after_Nov24",
+       1077,
+       10676098
+      ],
+      [
+       "through_Nov24",
+       2076,
+       19763569
       ]
      ],
      "truncated": false,
@@ -4433,188 +4113,43 @@
     }
    },
    {
-    "type": "tool_call",
-    "t": 31.31,
-    "tool": "query_snapshot",
-    "purpose": "show late-November genuine growth per day",
-    "snapshot": "current",
-    "sql": "SELECT order_date, COUNT(*) AS n, SUM(CASE WHEN status='paid' AND kind<>'refund' THEN revenue_cents ELSE 0 END) AS paid_cents FROM orders WHERE order_date >= '2026-11-24' AND order_date < '2026-12-01' GROUP BY order_date ORDER BY order_date",
-    "question": null,
-    "call_id": "call_01a1a4c0325671aa817a87ab36672cba"
-   },
-   {
-    "type": "tool_result",
-    "t": 31.31,
-    "tool": "query_snapshot",
-    "call_id": "call_01a1a4c0325671aa817a87ab36672cba",
-    "result": {
-     "sql": "SELECT order_date, COUNT(*) AS n, SUM(CASE WHEN status='paid' AND kind<>'refund' THEN revenue_cents ELSE 0 END) AS paid_cents FROM orders WHERE order_date >= '2026-11-24' AND order_date < '2026-12-01' GROUP BY order_date ORDER BY order_date",
-     "columns": [
-      "order_date",
-      "n",
-      "paid_cents"
-     ],
-     "rows": [
-      [
-       "2026-11-24",
-       103,
-       890998
-      ],
-      [
-       "2026-11-25",
-       106,
-       1048673
-      ],
-      [
-       "2026-11-26",
-       74,
-       664359
-      ],
-      [
-       "2026-11-27",
-       343,
-       2769813
-      ],
-      [
-       "2026-11-28",
-       167,
-       1555451
-      ],
-      [
-       "2026-11-29",
-       218,
-       1719429
-      ]
-     ],
-     "truncated": false,
-     "evidence_id": "E12",
-     "snapshot": "current"
-    }
-   },
-   {
-    "type": "tool_call",
-    "t": 31.31,
-    "tool": "query_snapshot",
-    "purpose": "inspect duplicate customer region values",
-    "snapshot": "current",
-    "sql": "SELECT customer_id, region, COUNT(*) AS n FROM customers WHERE customer_id IN (1394, 1383, 1364) GROUP BY customer_id, region ORDER BY customer_id",
-    "question": null,
-    "call_id": "call_01a1a4c034dd71cd9c9318cf3f5bd11f"
-   },
-   {
-    "type": "tool_result",
-    "t": 31.31,
-    "tool": "query_snapshot",
-    "call_id": "call_01a1a4c034dd71cd9c9318cf3f5bd11f",
-    "result": {
-     "sql": "SELECT customer_id, region, COUNT(*) AS n FROM customers WHERE customer_id IN (1394, 1383, 1364) GROUP BY customer_id, region ORDER BY customer_id",
-     "columns": [
-      "customer_id",
-      "region",
-      "n"
-     ],
-     "rows": [
-      [
-       1364,
-       "APAC",
-       1
-      ],
-      [
-       1364,
-       "APAC (migrated)",
-       1
-      ],
-      [
-       1383,
-       "EMEA",
-       1
-      ],
-      [
-       1383,
-       "EMEA (migrated)",
-       1
-      ],
-      [
-       1394,
-       "EMEA",
-       1
-      ],
-      [
-       1394,
-       "EMEA (migrated)",
-       1
-      ]
-     ],
-     "truncated": false,
-     "evidence_id": "E13",
-     "snapshot": "current"
-    }
-   },
-   {
-    "type": "tool_call",
-    "t": 31.31,
-    "tool": "query_snapshot",
-    "purpose": "count total duplicate customer keys",
-    "snapshot": "current",
-    "sql": "SELECT COUNT(*) AS dup_key_count, SUM(n) AS extra_customer_rows FROM (SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id HAVING n > 1)",
-    "question": null,
-    "call_id": "call_01a1a4c037037240814cb20d7ef359c3"
-   },
-   {
-    "type": "tool_result",
-    "t": 31.31,
-    "tool": "query_snapshot",
-    "call_id": "call_01a1a4c037037240814cb20d7ef359c3",
-    "result": {
-     "sql": "SELECT COUNT(*) AS dup_key_count, SUM(n) AS extra_customer_rows FROM (SELECT customer_id, COUNT(*) AS n FROM customers GROUP BY customer_id HAVING n > 1)",
-     "columns": [
-      "dup_key_count",
-      "extra_customer_rows"
-     ],
-     "rows": [
-      [
-       126,
-       252
-      ]
-     ],
-     "truncated": false,
-     "evidence_id": "E14",
-     "snapshot": "current"
-    }
+    "type": "thinking",
+    "t": 60.67,
+    "text": "Comparing previous and current SQL results, noting the current query's inner join violates coverage by dropping unmatched orders and causing duplicates."
    },
    {
     "type": "thinking",
-    "t": 47.64,
-    "text": "Comparing previous and current SQL queries against contract requirements, noting refund exclusion and customer join coverage and duplication issues."
+    "t": 60.67,
+    "text": "Reconciling the cent discrepancy between duplicate excess and unmatched amounts in the join totals."
    },
    {
     "type": "thinking",
-    "t": 47.64,
-    "text": "Reconciling the net overstatement by separating fanout duplication gains from unmatched order losses."
+    "t": 60.67,
+    "text": "Investigating why the duplicate excess sum equals the net error instead of the gross amount."
    },
    {
     "type": "thinking",
-    "t": 47.64,
-    "text": "Formulating the correction SQL to match the contract grain and verifying it via the validation tool."
+    "t": 60.67,
+    "text": "Pinpointing the join duplication cause and framing the correction SQL constraints."
    },
    {
     "type": "tool_call",
-    "t": 47.64,
+    "t": 60.67,
     "tool": "verify_correction",
-    "purpose": "verify revert to orders-only restores contract",
+    "purpose": "Verify corrected SQL matches contract reference",
     "snapshot": null,
     "sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'",
     "question": null,
-    "call_id": "call_01a1a4c07c46774cbc9e9191247058f7"
+    "call_id": "call_01a1a586520d77d6b3580f54ce3d5a74"
    },
    {
     "type": "tool_result",
-    "t": 47.66,
+    "t": 60.69,
     "tool": "verify_correction",
-    "call_id": "call_01a1a4c07c46774cbc9e9191247058f7",
+    "call_id": "call_01a1a586520d77d6b3580f54ce3d5a74",
     "result": {
      "verified": true,
-     "evidence_id": "E15",
+     "evidence_id": "E12",
      "expected_revenue_cents": 30439667,
      "actual_revenue_cents": 30439667,
      "missing_row_count": 0,
@@ -4626,50 +4161,50 @@
    },
    {
     "type": "thinking",
-    "t": 63.69,
-    "text": "Analyzing SQL metric contract violations for fanout and inner join coverage issues against replay results."
+    "t": 77.06,
+    "text": "Summarizing SQL snapshot figures to explain total increase and separate genuine growth from defect impact."
    },
    {
     "type": "thinking",
-    "t": 63.69,
-    "text": "Quantifying fanout overcount from duplicate customer keys and adjusting the revenue delta."
+    "t": 77.06,
+    "text": "Correcting the net error calculation by separating duplicate excess from unmatched revenue."
    },
    {
     "type": "thinking",
-    "t": 63.69,
-    "text": "Finalizing the mixed_change classification and assembling the correction SQL with evidence IDs."
+    "t": 77.06,
+    "text": "Finalizing the mixed-change classification and correction SQL with evidence IDs."
    },
    {
     "type": "diagnosis",
-    "t": 63.69,
+    "t": 77.06,
     "classification": "mixed_change",
-    "summary": "Reported revenue rose $189,317 to $318,362 (+$129,045). Real paid November growth to $304,397 (+$115,080) is genuine, including strong Nov 27 ($27,698) and Nov 30 ($29,184). The remaining +$13,966 is a join defect: migrated CRM duplicates double-counted 275 orders (+$25,521), partly offset by INNER JOIN dropping 131 unmatched-customer orders (-$11,555).",
-    "root_cause": "INNER JOIN to migrated customers table both fanouts on 126 duplicate customer_ids and drops unmatched orders, violating one-row-per-order and all-orders coverage.",
+    "summary": "Revenue rose from $189,316.83 to $318,362.28 (+$129,045.45). Most is real: correct November paid revenue on current data is $304,396.67 (up $115,079.84), including $106,760.98 from 1,077 orders after Nov 24. The rest is a join bug: the new INNER JOIN to customers adds $25,520.52 of duplicates while dropping $11,555.91 of 131 unmatched orders, for a net overstatement of $13,965.61.",
+    "root_cause": "INNER JOIN to migrated customers table with 126 duplicate customer_ids fans out 275 order rows and drops 131 unmatched orders, violating one-row-per-order and all-orders coverage.",
     "correction_sql": "SELECT order_id, revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-11-01' AND order_date < '2026-12-01' AND kind <> 'refund'"
    },
    {
     "type": "verified",
-    "t": 63.7,
+    "t": 77.08,
     "verified": true,
     "reason": "Complete order/value multiset matches the metric contract.",
-    "evidence_id": "E16"
+    "evidence_id": "E13"
    },
    {
     "type": "review_start",
-    "t": 63.7,
+    "t": 77.08,
     "model": "muse-wonder-1.0"
    },
    {
     "type": "review",
-    "t": 73.39,
+    "t": 89.12,
     "verdict": "supported",
     "concerns": [],
-    "brief": "Paid November revenue actually rose from $189,317 to $304,397, a genuine increase of $115,080, not the reported $318,362. Replace the current figure with the verified corrected $304,397, removing the $13,966 net join overstatement ($25,521 duplicate double-count less $11,555 of dropped unmatched-customer orders).",
+    "brief": "Paid November revenue genuinely rose by $115,079.84, from $189,316.83 to a corrected $304,396.67. The reported $318,362.28 overstates that corrected amount by $13,965.61, so restore the verified correction SQL before using the metric.",
     "model": "muse-wonder-1.0"
    },
    {
     "type": "done",
-    "t": 73.39,
+    "t": 89.12,
     "classification": "mixed_change"
    }
   ],
@@ -4677,10 +4212,10 @@
    "model": "muse-wonder-1.0",
    "verdict": "supported",
    "concerns": [],
-   "stakeholder_brief": "Paid November revenue actually rose from $189,317 to $304,397, a genuine increase of $115,080, not the reported $318,362. Replace the current figure with the verified corrected $304,397, removing the $13,966 net join overstatement ($25,521 duplicate double-count less $11,555 of dropped unmatched-customer orders).",
+   "stakeholder_brief": "Paid November revenue genuinely rose by $115,079.84, from $189,316.83 to a corrected $304,396.67. The reported $318,362.28 overstates that corrected amount by $13,965.61, so restore the verified correction SQL before using the metric.",
    "usage": {
-    "input_tokens": 2580,
-    "output_tokens": 874
+    "input_tokens": 2367,
+    "output_tokens": 1306
    }
   },
   "review_history": [
@@ -4688,19 +4223,19 @@
     "model": "muse-wonder-1.0",
     "verdict": "supported",
     "concerns": [],
-    "stakeholder_brief": "Paid November revenue actually rose from $189,317 to $304,397, a genuine increase of $115,080, not the reported $318,362. Replace the current figure with the verified corrected $304,397, removing the $13,966 net join overstatement ($25,521 duplicate double-count less $11,555 of dropped unmatched-customer orders).",
+    "stakeholder_brief": "Paid November revenue genuinely rose by $115,079.84, from $189,316.83 to a corrected $304,396.67. The reported $318,362.28 overstates that corrected amount by $13,965.61, so restore the verified correction SQL before using the metric.",
     "usage": {
-     "input_tokens": 2580,
-     "output_tokens": 874
+     "input_tokens": 2367,
+     "output_tokens": 1306
     }
    }
   ],
   "clarified": false,
-  "elapsed_seconds": 73.391,
+  "elapsed_seconds": 89.125,
   "limitations": "Model interpretation; execution evidence and independent repair checks do not verify every prose claim. Local prototype.",
   "report_version": 1,
-  "generated_at": "2026-11-04T04:11:08.258487+00:00",
-  "input_sha256": "233a52901c8ab9755547a3d08a9a29acf0bd54912a806baa113b10764ffca722",
+  "generated_at": "2026-11-04T07:47:15.597831+00:00",
+  "input_sha256": "65c82cb556f4d7dd9e7a0027913c6495e53dba522c597dbfb8fec6a78b58a5b9",
   "metric_contract": {
    "name": "Paid November revenue",
    "grain": "one row per order_id",
@@ -4711,9 +4246,10 @@
    "refund_policy": "exclude",
    "customer_coverage": "all orders, including unmatched customers"
   },
+  "domain": "revenue",
   "sql_engine": "SQLite",
   "application_version": "0.3.0",
-  "source_sha256": "928e5dacb796e9c1013894649463658e621456cd6c333af8f997f36d1bb71551",
+  "source_sha256": "a4ee6aa8b351896488c6a4b0cb2d27338c0cf95ec0c9e3d0040c39f465f0cd8e",
   "runtime": {
    "python": "3.11.5",
    "sqlite": "3.41.2"

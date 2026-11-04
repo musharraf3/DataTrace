@@ -7,14 +7,17 @@
 
 **An agent that tells you whether a metric jump is real or the dashboard is wrong, and proves it.**
 
-It's 8 a.m., the CFO review is at 10, and *Paid November revenue* jumped 68% overnight. Black Friday was strong, but is all of it real?
-DataTrace's Meta-powered agent investigates the change with executed SQL evidence. It separates genuine business movement from reporting errors down to the individual order, and reports a fix only after an independent checker verifies it.
+It's 8 a.m., the monthly cost review is at 10, and **paid inpatient claims for November jumped 40% overnight**. Some claims run-out is normal, but this month the eligibility table was also rebuilt. How much of the jump is real?
 
-> **Flagship result** (real recorded run, 4,122 orders): revenue moved **+$129,045**. **$115,080** is genuine holiday growth. **$13,966** is a reporting error: a CRM migration duplicated 126 customers (+$25,521 double-counted) while the new inner join dropped 131 orders (−$11,555). Verified fix: **$304,397**. Reviewed and supported by a second Meta model.
+DataTrace's Meta-powered agent investigates the change with executed SQL evidence. It separates genuine movement from reporting errors down to the individual claim, and reports a fix only after an independent checker verifies it.
 
-Built for the **Meta Global AI Developer Hackathon 2026**, Indie Developer track, **Build for Your World** theme.
+> **Flagship result** (real recorded run on CMS DE-SynPUF Medicare claims): paid claims moved **+$5,210,800**. **$4,561,400** is genuine claims run-out. **$649,400** is a reporting error across **69 claims**: the eligibility rebuild gave members who switched coverage mid-year two rows (their claims double-counted), and deceased members were dropped by the new inner join. Verified corrected total: **$17,566,180**. Reviewed and supported by a second Meta model.
 
-![DataTrace verdict: real growth plus a reporting defect, with a verified fix and a CFO brief](docs/screenshots/verdict.png)
+The same engine also handles retail revenue: in a Black Friday incident with 4,122 orders, it finds $115,080 of genuine growth and $13,966 of CRM-migration join error.
+
+Built for the **Meta Global AI Developer Hackathon 2026**, Indie Developer track, **Build for Your World** theme: healthcare claims analytics, where "is this cost trend real?" is asked every month.
+
+![DataTrace verdict: real growth plus a reporting defect, with a verified fix and a leadership brief](docs/screenshots/verdict.png)
 
 ## Try it in 60 seconds (no API key needed)
 
@@ -28,21 +31,33 @@ python -m venv .venv
 
 Then open one of these links. Each replays a real captured Meta agent run at no cost:
 
-- Flagship Black Friday incident: <http://localhost:8501/?incident=crm_migration&mode=recorded&autorun=1>
-- The agent pauses to ask about refunds: <http://localhost:8501/?incident=refund_policy&mode=recorded&autorun=1>
-- Genuine growth, no fix needed: <http://localhost:8501/?incident=holiday_growth&mode=recorded&autorun=1>
+- Healthcare flagship, eligibility rebuild: <http://localhost:8501/?incident=eligibility_spans&mode=recorded&autorun=1>
+- The agent pauses to ask whether reversals net against paid claims: <http://localhost:8501/?incident=reversal_policy&mode=recorded&autorun=1>
+- The reviewer challenges, and the agent revises: <http://localhost:8501/?incident=service_date_cutoff&mode=recorded&autorun=1>
+- Genuine claims run-out, no fix needed: <http://localhost:8501/?incident=runout_growth&mode=recorded&autorun=1>
+- Retail Black Friday incident: <http://localhost:8501/?incident=crm_migration&mode=recorded&autorun=1>
 
-Add a key to `.env` and choose **Live Meta agent** to run it for real. Links never auto-run live mode, so a link can never spend credits.
+Add a key to `.env` and choose **Live Meta agent** to run it for real. Links never auto-run live mode, so a link can never spend credits. A narrated walkthrough is in [docs/video](docs/video) (captions: [docs/demo_captions.srt](docs/demo_captions.srt)).
 
 | The agent's live timeline | It asks instead of guessing |
 | --- | --- |
-| ![Agent timeline: each hypothesis, its SQL and the evidence it returned](docs/screenshots/timeline.png) | ![The agent pauses with a precise refund question](docs/screenshots/clarification.png) |
+| ![Agent timeline: each hypothesis, its SQL and the evidence it returned](docs/screenshots/timeline.png) | ![The agent pauses with a precise question](docs/screenshots/clarification.png) |
 
 ![How DataTrace works](docs/architecture.svg)
 
 ## Why it matters
 
-Analysts spend hours answering "is this number right?" before every leadership review. Generic AI chat can't answer it: it either guesses, or it needs every raw row pasted into its context, which leaks data and stops working at warehouse scale. DataTrace gives a Meta model the job an analyst actually does: form hypotheses, run targeted queries, test a fix against the metric's definition, and ask when the definition is missing.
+Finance, actuarial and analytics teams spend hours answering "is this number right?" before every cost or revenue review. Claims data makes it harder: late claims arrive for weeks (run-out), adjudication is pending, reversals net against paid, and eligibility files are rebuilt. A genuine trend and a data defect often land in the same month.
+
+Generic AI chat can't answer it. It either guesses, or it needs every raw row pasted into its context, which exposes the data, gets the dollar amounts wrong, and stops working at warehouse scale (see the benchmark). DataTrace gives a Meta model the job an analyst actually does: form hypotheses, run targeted queries, test a fix against the metric's definition, and ask when the definition is missing.
+
+## Real-format data: CMS DE-SynPUF
+
+The healthcare incidents use the **CMS 2008-2010 Data Entrepreneurs' Synthetic Public Use File (DE-SynPUF), Sample 1**: the inpatient claims and 2009 beneficiary summary files, which are public-domain synthetic Medicare data with no PHI ([source](https://www.cms.gov/data-research/statistics-trends-and-reports/medicare-claims-synthetic-public-use-files)). From the files: claim IDs, beneficiaries, service dates, paid amounts, Medicare Advantage coverage months and death dates. **Simulated, seeded and disclosed:** claim processing lag (run-out), pending adjudication, about 2.5% full reversals, the two refresh snapshots, and each incident's reporting defect. `scripts/prepare_synpuf.py` rebuilds the committed 975 KB extract from the original CMS zips.
+
+## One engine, any domain
+
+Table names, column names, value vocabulary and labels are a **domain profile** (`src/datatrace/domains.py`), not code. The healthcare domain speaks `claims`, `eligibility`, `claim_id`, `paid_cents`, `denied` and `reversal`; the retail domain speaks `orders`, `customers` and `refund`. The agent, sandbox and per-row verifier are shared, so a new domain is configuration.
 
 ## Meta models: four roles
 
@@ -55,19 +70,21 @@ Analysts spend hours answering "is this number right?" before every leadership r
 
 ## Benchmark: the agent vs. the same model without tools
 
-**320 paid runs.** Every case was run 3× (warehouse-scale 2×). The baseline is the same `muse-spark-1.3`, with all raw rows in its prompt and no tools. **Agent: 159/160 correct. Baseline: 150/160.** Full table, including latency: [results/BENCHMARK.md](results/BENCHMARK.md).
+**360 paid runs.** Every case was run 3× (warehouse-scale and healthcare 2×). The baseline is the same `muse-spark-1.3`, with all raw rows in its prompt and no tools. **Agent: 179/180 correct. Baseline: 168/180.** On dollar amounts, the number a finance or actuarial lead acts on, the gap is much larger: on CMS claims incidents the agent put the right dollars on real change and reporting error in **16/16** runs, the baseline in **4/16**. Full table, including latency: [results/BENCHMARK.md](results/BENCHMARK.md).
 
 <!-- BENCHMARK_START -->
-| Split | System | Correct diagnosis | Verified repair when needed | Errors / could not run | Input tokens per case | Est. cost per case |
-| --- | --- | --- | --- | --- | --- | --- |
-| Development (20 mini cases) | DataTrace agent (tools + verifier + reviewer) | 59/60 | 36/36 | 1/60 | 9,710 | $0.039 |
-| Development (20 mini cases) | Same model, no tools, raw rows in prompt | 60/60 | 36/36 | 0/60 | 996 | $0.008 |
-| Stress (20 mini cases, new values) | DataTrace agent (tools + verifier + reviewer) | 60/60 | 36/36 | 0/60 | 10,211 | $0.042 |
-| Stress (20 mini cases, new values) | Same model, no tools, raw rows in prompt | 60/60 | 36/36 | 0/60 | 1,189 | $0.009 |
-| Realistic (10 cases, ~4k orders) | DataTrace agent (tools + verifier + reviewer) | 30/30 | 18/18 | 0/30 | 14,180 | $0.061 |
-| Realistic (10 cases, ~4k orders) | Same model, no tools, raw rows in prompt | 30/30 | 18/18 | 0/30 | 197,902 | $0.264 |
-| Warehouse scale (5 cases, ~42k orders) | DataTrace agent (tools + verifier + reviewer) | 10/10 | 6/6 | 0/10 | 14,366 | $0.061 |
-| Warehouse scale (5 cases, ~42k orders) | Same model, no tools, raw rows in prompt | 0/10 | 0/6 | 10/10 | 0 | $0.000 |
+| Split | System | Correct diagnosis | Dollar split correct | Verified repair when needed | Errors / could not run | Input tokens per case | Est. cost per case |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Development (20 mini cases) | DataTrace agent (tools + verifier + reviewer) | 59/60 | 47/47 | 36/36 | 1/60 | 9,710 | $0.039 |
+| Development (20 mini cases) | Same model, no tools, raw rows in prompt | 60/60 | 48/48 | 36/36 | 0/60 | 996 | $0.008 |
+| Stress (20 mini cases, new values) | DataTrace agent (tools + verifier + reviewer) | 60/60 | 48/48 | 36/36 | 0/60 | 10,211 | $0.042 |
+| Stress (20 mini cases, new values) | Same model, no tools, raw rows in prompt | 60/60 | 48/48 | 36/36 | 0/60 | 1,189 | $0.009 |
+| Realistic (10 cases, ~4k orders) | DataTrace agent (tools + verifier + reviewer) | 30/30 | 24/24 | 18/18 | 0/30 | 14,180 | $0.061 |
+| Realistic (10 cases, ~4k orders) | Same model, no tools, raw rows in prompt | 30/30 | 12/24 | 18/18 | 0/30 | 197,902 | $0.264 |
+| Warehouse scale (5 cases, ~42k orders) | DataTrace agent (tools + verifier + reviewer) | 10/10 | 8/8 | 6/6 | 0/10 | 14,366 | $0.061 |
+| Warehouse scale (5 cases, ~42k orders) | Same model, no tools, raw rows in prompt | 0/10 | n/a | 0/6 | 10/10 | 0 | $0.000 |
+| Healthcare claims (10 cases, CMS DE-SynPUF) | DataTrace agent (tools + verifier + reviewer) | 20/20 | 16/16 | 12/12 | 0/20 | 22,990 | $0.084 |
+| Healthcare claims (10 cases, CMS DE-SynPUF) | Same model, no tools, raw rows in prompt | 18/20 | 4/16 | 12/12 | 2/20 | 183,044 | $0.246 |
 <!-- BENCHMARK_END -->
 
 The honest reading:
@@ -80,6 +97,32 @@ The honest reading:
 These are synthetic, author-generated incidents with hidden labels, not a production benchmark.
 
 ![Benchmark tab: agent vs. no-tools baseline across four splits](docs/screenshots/benchmark.png)
+
+## What the AI adds over the verifier
+
+DataTrace's deterministic verifier is the referee: it knows the metric contract, so it can tell *that* a number is wrong. It cannot tell you *why*, fix your SQL while keeping its intent, or ask about a missing definition. That is the agent's job, and the benchmark shows why giving the model tools matters:
+
+| | Verifier only (no AI) | Same model, raw rows, no tools | **DataTrace agent** |
+| --- | --- | --- | --- |
+| Detects that the number is wrong | ✓ | ✓ | ✓ |
+| Names the root cause | ✗ | ✓ when data fits | ✓ |
+| Correct dollar split, 4k-order retail incidents | n/a | 12/24 | **24/24** |
+| Correct dollar split, CMS claims incidents | n/a | 4/16 | **16/16** |
+| Works at 42k orders | ✓ | ✗ (context exceeded) | ✓ 10/10 |
+| Raw rows sent to the model | none | all | **none** |
+| Asks when the definition is missing | ✗ | ✗ | ✓ |
+| Cost per realistic case | $0 | $0.264 | $0.061 |
+
+## Is the reviewer more than decoration?
+
+We planted exactly one known error into each of 28 otherwise-correct agent diagnoses (dollar amounts inflated 40%, an invented cause, a flipped classification, or the broken query presented as the fix) and asked `muse-wonder-1.0` to review each one alongside the 8 unmodified diagnoses ([results/reviewer_eval.json](results/reviewer_eval.json)).
+
+| | Result |
+| --- | --- |
+| Planted errors challenged | **28 / 28** |
+| Unmodified diagnoses passed | **7 / 8**. The one it flagged contains a real ~$5,100 double-count in the agent's own explanation |
+
+The first version caught only 19/28: the reviewer often *described* the planted error in its concerns but still returned "supported", because the schema asked for the verdict before the reasoning. The fix: concerns come first, each marked blocking or minor; the verdict is derived from blocking concerns in code; and two deterministic rules are always blocking (a fix that failed verification, and a genuine-change claim when the reconciliation shows an error).
 
 ## What happens in an investigation
 
@@ -102,7 +145,7 @@ copy .env.example .env      # then add MODEL_API_KEY privately
 .\.venv\Scripts\python.exe run.py
 ```
 
-macOS/Linux: `.venv/bin/python`. Without a key, the app opens in **Recorded live run** mode, which replays real Meta agent runs captured from this app at no cost. **Offline checks** runs deterministic diagnostics with no AI.
+macOS/Linux: `.venv/bin/python`. Without a key, the app opens in **Recorded live run** mode, which replays real Meta agent runs captured from this app at no cost. **Verifier only** runs the deterministic contract checks with no AI: it can tell that a number is wrong, but not why.
 
 Command line:
 
@@ -112,14 +155,25 @@ Command line:
 .\.venv\Scripts\python.exe -m datatrace verify incident.json correction.sql
 ```
 
-Reproduce the benchmark (billable; the full 320-run benchmark cost about $16 at list prices):
+Reproduce the benchmark (billable; the full 360-run benchmark cost about $23 at list prices):
 
 ```powershell
 .\.venv\Scripts\python.exe -m datatrace.evaluate --mode compare --allow-paid --review --split realistic --repeat 3 --workers 8 --output artifacts/bench-realistic.json
 .\.venv\Scripts\python.exe scripts\summarize_benchmark.py
 ```
 
-Splits: `development`, `stress`, `realistic`, `scale`. Tests: `python -m pytest -q`.
+Splits: `development`, `stress`, `realistic`, `scale`, `healthcare`. Tests: `python -m pytest -q`.
+
+## Run the agent on open-weight Meta models
+
+`src/datatrace/openweight.py` is a Chat Completions adapter with the same interface as the Responses client, so the identical agent, tools, reviewer and verifier run on Muse open-weight models served by Baseten, Fireworks or Modal. It was tested end to end against Meta's own `/chat/completions` endpoint (correct diagnosis, verified fix, reviewer verdict). Credentials go only to HTTPS hosts on Meta, Baseten, Fireworks or Modal.
+
+```ini
+DATATRACE_PROVIDER=openweight
+OPENWEIGHT_BASE_URL=https://inference.baseten.co/v1
+OPENWEIGHT_API_KEY=...
+OPENWEIGHT_MODEL=meta-models/muse-spark-open-1026
+```
 
 ## Bring your own incident
 
@@ -129,6 +183,8 @@ Upload an **Incident JSON** or **four CSV snapshots** (template ZIP in the sideb
 | --- | --- |
 | orders (previous, current) | `order_id,customer_id,order_date,status,kind,revenue_cents` |
 | customers (previous, current) | `customer_id,region` |
+| claims (healthcare domain) | `claim_id,member_id,service_date,status,kind,paid_cents` with status paid, pending or denied and kind claim or reversal |
+| eligibility (healthcare domain) | `member_id,plan` |
 
 Up to 120,000 rows per table and 32 MiB per file. Metric SQL must return `order_id, revenue_cents` rows. The supported contract covers an inclusive start, exclusive end, one eligible status, and refund include/exclude/unknown. Unsupported grains are rejected rather than silently misverified.
 
@@ -165,6 +221,7 @@ All code in this repository was written between **Oct 28 and Nov 3, 2026**, insi
 | Oct 29 | Evidence engine: four-way replay, sandboxed SQL runner, per-order verifier, first Meta tool loop, 40 synthetic incidents |
 | Oct 29 | Custom JSON/CSV incidents, reports, CLI, no-tools baseline |
 | Nov 3 | Revenue bridge and impact breakdown |
+| Nov 3–4 | Healthcare domain on CMS DE-SynPUF claims; domain profiles; answer-quality scoring (root cause, dollar split); reviewer planted-error experiment and the concerns-first reviewer; open-weight Chat Completions adapter; narrated demo video and captions |
 | Nov 3 | Stress test and hardening: HTML escaping, graceful tool budget, live-failure fallback, query cache, wider safe SQL functions, precise CSV errors, pinned Streamlit |
 | Nov 3 | Agent v2: no raw rows to the model, parallel tool calls, reasoning summaries, `request_clarification` with pause and resume, `muse-wonder-1.0` reviewer with revision, voice and screenshot intake, realistic 4k-order and 42k-order incidents, live timeline UI, recorded runs, benchmark, safety guards |
 
@@ -185,11 +242,11 @@ results/                      benchmark summary
 ## What's next
 
 - **Warehouse connectors.** Run the same bounded, read-only tools against DuckDB, Snowflake or BigQuery views instead of in-memory snapshots.
-- **Any metric, not just order revenue.** Let the analyst declare grain, filters and measure in the contract; the verifier already checks per-key multisets, so it generalises.
-- **Open-weight mode.** The same agent on Muse Spark Open or Muse Glimmer for teams whose data can't leave their infrastructure, benchmarked against the hosted model.
+- **More metric shapes.** Per-member-per-month rates, utilisation per 1,000, and ratios, with the verifier checking numerator and denominator multisets.
+- **Open-weight benchmark.** The adapter is ready; with partner credits, run the benchmark on Muse Spark Open or Muse Glimmer for teams whose data can't leave their infrastructure.
 - **Alerts in, briefs out.** Start investigations from a dashboard alert or Slack message and post the verified brief back.
 - **Learning from verified traces.** Every investigation produces a checked trace (hypothesis, query, evidence, verdict), which is training data for a smaller specialised investigator.
 
 ## Limits
 
-Synthetic data only. One SQL dialect (SQLite) and one metric family (order revenue). Evidence references and independent checks do not verify every sentence a model writes. The app has no multi-user authentication. MIT licensed.
+Synthetic data only: generated retail incidents, and CMS DE-SynPUF synthetic claims with simulated lag, reversals and defects. One SQL dialect (SQLite). Two domain profiles, both with a fact table and one dimension. Evidence references and independent checks do not verify every sentence a model writes; the reviewer flags unsupported details, and the UI shows open concerns. No multi-user authentication. MIT licensed. DE-SynPUF is a U.S. Government work in the public domain.

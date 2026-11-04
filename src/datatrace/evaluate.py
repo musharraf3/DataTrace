@@ -17,7 +17,7 @@ from .investigator import offline_walkthrough
 from .meta import MetaClient, investigate_meta, investigate_baseline
 from .reporting import estimate_cost
 
-SPLITS = ["development", "stress", "realistic", "scale"]
+SPLITS = ["development", "stress", "realistic", "scale", "healthcare"]
 
 
 def split_cases(split):
@@ -30,6 +30,9 @@ def split_cases(split):
         return realistic_cases()
     if split == "scale":
         return scale_cases()
+    if split == "healthcare":
+        from .healthcare import healthcare_cases
+        return healthcare_cases()
     raise ValueError("Unknown evaluation split.")
 
 
@@ -73,7 +76,8 @@ def evaluate(mode="offline", *, client=None, split="development", cases=None,
     selected = cases if cases is not None else split_cases(split)
     estimate_cost({}, input_rate, output_rate)  # Validate explicit rates before any paid request.
     if mode != "offline":
-        client = client or MetaClient()  # Fail before the run if account configuration is missing.
+        from .openweight import make_agent_client
+        client = client or make_agent_client()  # Fail before the run if account configuration is missing.
     jobs = [case for _ in range(repeat) for case in selected]
     if workers > 1:
         with ThreadPoolExecutor(workers) as pool:

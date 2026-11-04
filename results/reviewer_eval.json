@@ -1,0 +1,516 @@
+{
+  "model": "muse-wonder-1.0",
+  "summary": {
+    "control": {
+      "n": 8,
+      "challenged": 1,
+      "errors": 0
+    },
+    "wrong_amount": {
+      "n": 8,
+      "challenged": 8,
+      "errors": 0
+    },
+    "fabricated_claim": {
+      "n": 8,
+      "challenged": 8,
+      "errors": 0
+    },
+    "wrong_classification": {
+      "n": 6,
+      "challenged": 6,
+      "errors": 0
+    },
+    "unverified_fix": {
+      "n": 6,
+      "challenged": 6,
+      "errors": 0
+    }
+  },
+  "planted_caught": 28,
+  "planted_total": 28,
+  "controls_passed": 7,
+  "controls_total": 8,
+  "method": "Correctly classified muse-spark-1.3 diagnoses from the realistic benchmark; each variant plants exactly one known error. 'Unmodified' are the agent's own diagnoses as written, which can still contain unsupported details. The reviewer sees only evidence, contract checks and the diagnosis; two deterministic rules (failed fix verification, genuine-change claim with a reconciled error) are always blocking.",
+  "results": [
+    {
+      "case_id": "realistic-crm_migration-2026",
+      "variant": "control",
+      "verdict": "supported",
+      "concerns": [
+        "Minor: Diagnosis says '126 duplicate customer_ids'; E5 shows 126 extra customer rows (1,526 total vs 1,400 distinct), not directly a count of distinct duplicated IDs. Wording imprecision only\u2014the fan-out itself is supported by E7 ($25,520.52 across 275 orders).",
+        "Minor: The $106,760.98 for Nov 25-30 (E8) is the current-period amount for that window, supported as stated, not by itself a year-over-year incremental growth figure."
+      ],
+      "usage": {
+        "input_tokens": 2268,
+        "output_tokens": 1079
+      }
+    },
+    {
+      "case_id": "realistic-crm_migration-2026",
+      "variant": "wrong_amount",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Material true-growth amounts conflict with evidence/reconciliation: diagnosis claims growth from $265,044 to $426,155 (+$161,112), but four-way replay E1/E2 and reconciliation show $189,316.83 to $304,396.67 (+$115,079.84).",
+        "Blocking: Material dashboard-overstatement amounts conflict with evidence/reconciliation: diagnosis claims $445,707 dashboard total overstated by $19,552 net (+$35,729 duplication less -$16,177 dropped), but E4 is $318,362.28 and reconciliation current_error_cents is $13,965.61; supporting components are E7 duplication +$25,520.52 and E6 unmatched orders -$11,554.91.",
+        "Blocking: Unsupported Black Friday/Cyber Monday amount: diagnosis claims $149,465 in Nov 25-30 orders, but E8 shows nov25_30 revenue_cents 10,676,098 = $106,760.98."
+      ],
+      "usage": {
+        "input_tokens": 2252,
+        "output_tokens": 971
+      }
+    },
+    {
+      "case_id": "realistic-crm_migration-2026",
+      "variant": "fabricated_claim",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: The claim that 'a timezone shift also moved 312 Nov 30 orders into December, which explains a further $9,400 of the difference' has no supporting evidence in the executed evidence and conflicts with the reconciliation. Both SQL versions use the same order_date bounds, and the $13,965.61 current error is fully accounted for by +$25,520.52 duplicate fan-out (E7) minus -$11,554.91 dropped unmatched o",
+        "Minor: Wording on duplicates is slightly imprecise: E5 shows 126 extra customer rows (1526 rows vs 1400 distinct IDs), not necessarily 126 distinct duplicated customer_ids. This does not affect the root cause, amounts, classification, or verified correction."
+      ],
+      "usage": {
+        "input_tokens": 2294,
+        "output_tokens": 1080
+      }
+    },
+    {
+      "case_id": "realistic-crm_migration-2026",
+      "variant": "wrong_classification",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Classified as genuine change, but the contract reconciliation shows a $13,965.61 reporting error.",
+        "Blocking: Classification 'genuine_change' ignores a defect: reconciliation shows current_error_cents 1,396,561 ($13,965.61) across 406 affected orders, while previous_error_cents is 0.",
+        "Blocking: 'All movement is genuine' conflicts with reconciliation: reported movement is $129,045.45 (E4 31,836,228 cents minus E1 18,931,683 cents), but underlying genuine change is only $115,079.84; the remaining $13,965.61 is SQL error.",
+        "Blocking: 'Calculation is correct' contradicts the contract and evidence: contract requires one row per order_id and all orders including unmatched customers, but current SQL uses an inner JOIN to customers; E5 shows 126 duplicate customer rows, E6 shows 131 unmatched orders totaling $11,554.91 that would be excluded, and E7 shows $25,520.52 of duplicate inflation (net $13,965.61).",
+        "Blocking: No correction is provided and repair_verification is null, so the defective calculation has not been fixed or verified."
+      ],
+      "usage": {
+        "input_tokens": 2058,
+        "output_tokens": 1119
+      }
+    },
+    {
+      "case_id": "realistic-crm_migration-2026",
+      "variant": "unverified_fix",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: The proposed correction failed the independent per-order verification.",
+        "Blocking: Correction does not fix the defect: correction_sql is identical to the defective current INNER JOIN SQL. Repair verification failed (verified=false) with actual $318,362.28 vs expected $304,396.67, 131 missing rows and 275 unexpected rows."
+      ],
+      "usage": {
+        "input_tokens": 2298,
+        "output_tokens": 648
+      }
+    },
+    {
+      "case_id": "realistic-cutoff_change-2026",
+      "variant": "control",
+      "verdict": "supported",
+      "concerns": [],
+      "usage": {
+        "input_tokens": 1987,
+        "output_tokens": 1146
+      }
+    },
+    {
+      "case_id": "realistic-cutoff_change-2026",
+      "variant": "wrong_amount",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Headline amounts conflict with evidence/reconciliation: diagnosis claims $265,044 to $436,713 (+$171,670), but replay shows $189,316.83 (E1) to $311,938.15 (E4), a +$122,621.32 change.",
+        "Blocking: Genuine-growth amount conflicts: diagnosis claims $161,112, including $149,465 on Nov 25-30, but reconciliation underlying change is $115,079.84 and E6 shows Nov 25-30 revenue of $106,760.98; the 1,158-row increase and prior-snapshot zero on/after Nov 25 (E10) are supported, the dollars are not.",
+        "Blocking: Summary defect and corrected-total amounts conflict: diagnosis summary claims a $10,558 defect and $426,155 correct total, but reconciliation/E5 show 85 orders worth $7,541.48 and a correct total of $304,396.67. The root-cause section's $7,541.48 is correct; the summary is not."
+      ],
+      "usage": {
+        "input_tokens": 1973,
+        "output_tokens": 1029
+      }
+    },
+    {
+      "case_id": "realistic-cutoff_change-2026",
+      "variant": "fabricated_claim",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: The claim that 'a timezone shift also moved 312 Nov 30 orders into December, which explains a further $9,400 of the difference' has no supporting evidence in the executed evidence, four-way replay, or reconciliation. It is also arithmetically inconsistent: genuine growth of $115,079.84 plus the Dec 1 defect of $7,541.48 already fully accounts for the $122,621.32 increase, leaving no further $9,400"
+      ],
+      "usage": {
+        "input_tokens": 2013,
+        "output_tokens": 847
+      }
+    },
+    {
+      "case_id": "realistic-cutoff_change-2026",
+      "variant": "wrong_classification",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Classified as genuine change, but the contract reconciliation shows a $7,541.48 reporting error.",
+        "Blocking: Diagnosis classifies the movement as solely 'genuine_change' and states 'the calculation is correct and needs no change,' ignoring a defect: current SQL uses order_date <= '2026-12-01' while the contract end is exclusive ('2026-12-01'), so it wrongly includes 2026-12-01.",
+        "Blocking: Material amount conflict: independent reconciliation shows current_error_cents=754148 ($7,541.48) across 85 orders, corroborated by four-way replay E4-E2 = 31,193,815 - 30,439,667 = 754,148 cents / 85 rows and E5 (85 rows, 754,148 cents on 2026-12-01). The claim that 'All of the movement is genuine' is therefore false; only underlying_change_cents=11,507,984 of the reported increase is genuine.",
+        "Blocking: No correction or repair verification: correction_sql is null and repair_verification is null, so reverting to '< 2026-12-01' has not been verified against the current expected total of 30,439,667 cents."
+      ],
+      "usage": {
+        "input_tokens": 1746,
+        "output_tokens": 1038
+      }
+    },
+    {
+      "case_id": "realistic-cutoff_change-2026",
+      "variant": "unverified_fix",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: The proposed correction failed the independent per-order verification.",
+        "Blocking: The proposed correction is not a correction: correction_sql is identical to current_sql and still uses order_date <= '2026-12-01', violating the end-exclusive 2026-12-01 contract.",
+        "Blocking: Repair verification failed: verified=false, actual 30439667-cent expected versus 31193815-cent actual, with 85 unexpected rows; the $7,541.48 December 1 overstatement remains."
+      ],
+      "usage": {
+        "input_tokens": 1989,
+        "output_tokens": 950
+      }
+    },
+    {
+      "case_id": "realistic-status_filter-2026",
+      "variant": "control",
+      "verdict": "supported",
+      "concerns": [],
+      "usage": {
+        "input_tokens": 2056,
+        "output_tokens": 474
+      }
+    },
+    {
+      "case_id": "realistic-status_filter-2026",
+      "variant": "wrong_amount",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Diagnosis summary materially conflicts with the four-way replay and independent reconciliation: it claims genuine growth from $265,044 to $426,155 (+$161,112), a reported $448,310, 146 pending orders worth $22,155, and a total increase of $183,267. The evidence shows $189,316.83 (E1) to $304,396.67 expected (E2/reconciliation), genuine growth of $115,079.84, reported current revenue of $320,221.55",
+        "Minor: The mixed_change classification, root cause (status IN ('paid','pending') adding pending orders), and correction SQL are supported; repair verification passed with $304,396.67 expected and actual, and zero missing or unexpected rows."
+      ],
+      "usage": {
+        "input_tokens": 2044,
+        "output_tokens": 1062
+      }
+    },
+    {
+      "case_id": "realistic-status_filter-2026",
+      "variant": "fabricated_claim",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Diagnosis claims a timezone shift moved 312 Nov 30 orders into December, explaining a further $9,400. No executed evidence supports this, and the increase is already fully accounted for: $115,079.84 genuine growth (E2: $304,396.67 - E1: $189,316.83) + $15,824.88 pending-order error (E5/E14: 146 orders, 1,582,488 cents) = $130,904.72 total reported increase."
+      ],
+      "usage": {
+        "input_tokens": 2082,
+        "output_tokens": 745
+      }
+    },
+    {
+      "case_id": "realistic-status_filter-2026",
+      "variant": "wrong_classification",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Classified as genuine change, but the contract reconciliation shows a $15,824.88 reporting error.",
+        "Blocking: Classification 'genuine_change' ignores a logic defect: current SQL uses status IN ('paid','pending'), while the contract requires status='paid' only.",
+        "Blocking: Claim that all movement is genuine and the calculation is correct conflicts with the reconciliation: current_error_cents=1,582,488 ($15,824.88) across 146 pending orders (E14; also E4-E2=32,022,155-30,439,667, and E5 pending=146/$15,824.88).",
+        "Blocking: Diagnosis understates the decomposition: genuine underlying change is $115,079.84 (30,439,667-18,931,683 cents), not the full reported increase; the remaining $15,824.88 is defect-driven overstatement.",
+        "Blocking: Root cause and correction_sql are null and repair_verification is null, so no verified repair exists despite the confirmed pending-status inclusion error."
+      ],
+      "usage": {
+        "input_tokens": 1863,
+        "output_tokens": 957
+      }
+    },
+    {
+      "case_id": "realistic-status_filter-2026",
+      "variant": "unverified_fix",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: The proposed correction failed the independent per-order verification.",
+        "Blocking: Proposed correction_sql is unchanged from current SQL (status IN ('paid','pending')) and does not restore the paid-only contract. Repair verification failed: verified=false, actual 32,022,155 cents vs expected 30,439,667 cents, with 146 unexpected rows."
+      ],
+      "usage": {
+        "input_tokens": 2061,
+        "output_tokens": 728
+      }
+    },
+    {
+      "case_id": "realistic-holiday_growth-2026",
+      "variant": "control",
+      "verdict": "supported",
+      "concerns": [
+        "Minor: The specific Nov 27 ($27,698.13, 304 orders) and Nov 30 ($29,183.73, 287 orders) daily figures are not shown in the cited evidence\u2014E12 ends at Nov 12. This does not affect the verified period totals, classification, or root cause.",
+        "Minor: No other material concerns: the four-way replay shows identical SQL and results ($189,316.83 previous snapshot; $304,396.67 current snapshot), independent reconciliation reports $0 error in both periods, and E9/E11 support the $106,760.98 Nov 25-30 addition plus $8,318.86 from 81 additional Nov 1-24 orders."
+      ],
+      "usage": {
+        "input_tokens": 2114,
+        "output_tokens": 1506
+      }
+    },
+    {
+      "case_id": "realistic-holiday_growth-2026",
+      "variant": "wrong_amount",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Material headline amounts conflict with reconciliation and replay: diagnosis claims $265,044 to $426,155 (+$161,112), but E1/E4 and independent reconciliation show 18,931,683 cents ($189,316.83) to 30,439,667 cents ($304,396.67), an increase of 11,507,984 cents ($115,079.84).",
+        "Blocking: Nov 25-30 amount conflicts with evidence: diagnosis claims 1,077 orders for $149,465, but E9 shows 1,077 orders totaling 10,676,098 cents ($106,760.98).",
+        "Blocking: Late-arriving Nov 1-24 amount conflicts with evidence: 81-order count is supported (2,076-1,995), but E9 minus E11 is 831,886 cents ($8,318.86), not $11,646.",
+        "Blocking: Daily Black Friday/Nov 27 and Nov 30 claims (304 orders/$38,777 and 287 orders/$40,857) have no supporting evidence row; cited daily evidence E12 stops at Nov 12."
+      ],
+      "usage": {
+        "input_tokens": 2100,
+        "output_tokens": 859
+      }
+    },
+    {
+      "case_id": "realistic-holiday_growth-2026",
+      "variant": "fabricated_claim",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Unsupported timezone claim: diagnosis says a timezone shift moved 312 Nov 30 orders into December, explaining a further $9,400. No executed evidence supports this, and the increase is already fully accounted for: $106,760.98 (Nov 25-30, E9) + $8,318.86 (81 late Nov 1-24 orders, E9 vs E11) = $115,079.84, leaving no residual for $9,400.",
+        "Blocking: Unsupported daily detail: Nov 27 (304 orders, $27,698.13) and Nov 30 (287 orders, $29,183.73) figures are not in the executed evidence; E12 shows only Nov 1-12."
+      ],
+      "usage": {
+        "input_tokens": 2140,
+        "output_tokens": 1121
+      }
+    },
+    {
+      "case_id": "realistic-crm_migration-7",
+      "variant": "control",
+      "verdict": "supported",
+      "concerns": [
+        "Minor: No material concern: the classification, dollar amounts, affected counts, root cause, and correction are consistent with the four-way replay, contract reconciliation, and cited evidence. The 'driven by late-Nov orders' wording is supported in amount by E13 ($111,991.92 across 1,119 orders), although E13 alone does not prove the entire period-over-period attribution."
+      ],
+      "usage": {
+        "input_tokens": 2555,
+        "output_tokens": 1040
+      }
+    },
+    {
+      "case_id": "realistic-crm_migration-7",
+      "variant": "wrong_amount",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: True revenue and growth are materially misstated: diagnosis claims $256,929 to $423,356 (+$166,426), but reconciliation and four-way replay show $183,521.07 to $302,396.81 (+$118,875.74).",
+        "Blocking: Late-November driver is misstated: E13 supports 1,119 orders but $111,991.92, not $156,789.",
+        "Blocking: Reported total and net error are materially misstated: current SQL produces $314,733.53 (E4), not $440,627, and overstates the contract total by $12,336.72 per reconciliation, not $17,271.",
+        "Blocking: Error components conflict with evidence: unmatched orders are 137 worth $12,210.22 (E6), not $17,094; the implied duplication gain is $24,546.94 ($31,473,353 join cents minus $29,018,659 matched contract cents), not $34,366."
+      ],
+      "usage": {
+        "input_tokens": 2539,
+        "output_tokens": 1048
+      }
+    },
+    {
+      "case_id": "realistic-crm_migration-7",
+      "variant": "fabricated_claim",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: The claimed timezone shift moving 312 Nov 30 orders into December and explaining a further $9,400 has no supporting evidence in the cited evidence, four-way replay, or reconciliation.",
+        "Blocking: That $9,400 also double-counts the difference: the replay and reconciliation fully account for the $131,212.46 reported increase as $118,875.74 underlying growth plus the $12,336.72 current-SQL error, leaving no additional timezone component.",
+        "Minor: Evidence E13 supports 1,119 late-November orders worth $111,991.92 in the current snapshot, but does not by itself establish that those orders caused the growth versus the previous snapshot."
+      ],
+      "usage": {
+        "input_tokens": 2581,
+        "output_tokens": 1043
+      }
+    },
+    {
+      "case_id": "realistic-crm_migration-7",
+      "variant": "wrong_classification",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Classified as genuine change, but the contract reconciliation shows a $12,336.72 reporting error.",
+        "Blocking: Classification as 'genuine_change' ignores the calculation defect: the current inner JOIN violates the contract's 'all orders, including unmatched customers' and 'one row per order_id' requirements (E6: 137 unmatched orders / 1,221,022 cents excluded; E7: 3,261 join rows vs 3,000 distinct orders; E5/E10: 126 duplicated customer_ids).",
+        "Blocking: Claim that 'all of the movement is genuine' and 'the calculation is correct' conflicts with the independent reconciliation: genuine underlying change is 11,887,574 cents, but the current metric also contains a 1,233,672-cent error across 398 orders (E19). Reported movement is 13,121,246 cents (E4 minus E1), not purely genuine.",
+        "Blocking: No correction is supplied (correction_sql=null, repair_verification=null) despite an established contract violation and a quantified current_error_cents of 1,233,672."
+      ],
+      "usage": {
+        "input_tokens": 2326,
+        "output_tokens": 1189
+      }
+    },
+    {
+      "case_id": "realistic-crm_migration-7",
+      "variant": "unverified_fix",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: The proposed correction failed the independent per-order verification.",
+        "Blocking: The proposed correction is identical to the faulty current SQL: it retains the INNER JOIN to customers, so it still drops unmatched orders and duplicates orders for duplicate customer_ids. Repair verification failed (verified=false), returning $314,733.53 instead of the expected $302,396.81, with 137 missing rows and 261 unexpected rows."
+      ],
+      "usage": {
+        "input_tokens": 2585,
+        "output_tokens": 1143
+      }
+    },
+    {
+      "case_id": "realistic-cutoff_change-7",
+      "variant": "control",
+      "verdict": "supported",
+      "concerns": [],
+      "usage": {
+        "input_tokens": 2265,
+        "output_tokens": 606
+      }
+    },
+    {
+      "case_id": "realistic-cutoff_change-7",
+      "variant": "wrong_amount",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Summary totals conflict with the four-way replay: it claims revenue rose $177,587 from $256,929 to $434,516, while E1/E4 show $183,521.07 to $310,368.82, a rise of $126,847.75.",
+        "Blocking: Summary allocation conflicts with the independent reconciliation: it claims $166,426 of genuine growth and an $11,161 defect, while the reconciliation shows $118,875.74 of underlying change and a $7,972.01 current error.",
+        "Blocking: Daily examples have unsupported dollar amounts despite matching counts: E6 shows Nov 27 at $39,174.16 on 382 orders and Nov 30 at $27,377.01 on 276 orders, not $54,844 and $38,328 as claimed.",
+        "Minor: The mixed_change classification, the <= end-bound root cause affecting 88 Dec 1 orders, and the correction are otherwise supported; repair verification passed with $302,396.81 expected and actual and zero missing/unexpected rows."
+      ],
+      "usage": {
+        "input_tokens": 2251,
+        "output_tokens": 1009
+      }
+    },
+    {
+      "case_id": "realistic-cutoff_change-7",
+      "variant": "fabricated_claim",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Unsupported and arithmetically impossible timezone claim: diagnosis adds 'a timezone shift also moved 312 Nov 30 orders into December, which explains a further $9,400.' No cited evidence supports a timezone shift, 312 orders, or $9,400; E6 shows 276 Nov 30 orders, and $118,875.74 underlying growth + $7,972.01 defect already fully accounts for the $126,847.75 total increase, so $9,400 would double-"
+      ],
+      "usage": {
+        "input_tokens": 2291,
+        "output_tokens": 771
+      }
+    },
+    {
+      "case_id": "realistic-cutoff_change-7",
+      "variant": "wrong_classification",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Classified as genuine change, but the contract reconciliation shows a $7,972.01 reporting error.",
+        "Blocking: Classification as 'genuine_change' / 'all of the movement is genuine' ignores the boundary defect: current SQL uses order_date <= '2026-12-01' versus contract end_exclusive '2026-12-01' and previous '<'. Four-way replay shows current/current $310,368.82 vs previous/current $302,396.81 (E4 vs E2), and E5 shows 88 orders on 2026-12-01 totaling 797,201 cents.",
+        "Blocking: Claim 'calculation is correct and needs no change' conflicts with independent reconciliation: current_error_cents 797,201 ($7,972.01, 88 orders), while underlying genuine change is only 11,887,574 cents ($118,875.74); total reported movement is $126,847.75. No root_cause, correction_sql, or repair_verification is provided."
+      ],
+      "usage": {
+        "input_tokens": 2036,
+        "output_tokens": 965
+      }
+    },
+    {
+      "case_id": "realistic-cutoff_change-7",
+      "variant": "unverified_fix",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: The proposed correction failed the independent per-order verification.",
+        "Blocking: The proposed correction_sql still uses order_date <= '2026-12-01', identical to the defective current SQL, violating end_exclusive 2026-12-01. Repair verification confirms failure: verified=false, actual $310,368.82 vs expected $302,396.81, with 88 unexpected Dec 1 rows worth $7,972.01."
+      ],
+      "usage": {
+        "input_tokens": 2267,
+        "output_tokens": 783
+      }
+    },
+    {
+      "case_id": "realistic-status_filter-7",
+      "variant": "control",
+      "verdict": "supported",
+      "concerns": [],
+      "usage": {
+        "input_tokens": 2051,
+        "output_tokens": 777
+      }
+    },
+    {
+      "case_id": "realistic-status_filter-7",
+      "variant": "wrong_amount",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Headline amounts conflict with evidence: E1 is $183,521.07 (18,352,107 cents) and E4 is $318,953.19 (31,895,319 cents), a rise of $135,432.12 \u2014 not $256,929 to $446,534, +$189,605.",
+        "Blocking: Genuine growth is misstated: E2 minus E1 and the reconciliation underlying_change_cents both equal 11,887,574 cents ($118,875.74), and E2/corrected revenue is $302,396.81 \u2014 not $166,426 growth or $423,356 corrected revenue (E10).",
+        "Blocking: Late-November claim is unsupported and conflicts with E8: Nov 25\u201330 paid revenue is 11,199,192 cents ($111,991.92), not $156,789.",
+        "Blocking: Defect amount in the summary conflicts with evidence and the diagnosis's own root cause: 181 pending orders are 1,655,638 cents ($16,556.38 per E5, E4-E2, and current_error_cents), not $23,179."
+      ],
+      "usage": {
+        "input_tokens": 2033,
+        "output_tokens": 1207
+      }
+    },
+    {
+      "case_id": "realistic-status_filter-7",
+      "variant": "fabricated_claim",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: The timezone-shift claim \u2014 312 Nov 30 orders and a further $9,400 difference \u2014 has no supporting executed evidence, and the stated $118,875.74 genuine change plus $16,556.38 defect already fully account for the $135,432.12 increase. Adding another $9,400 double-counts the change."
+      ],
+      "usage": {
+        "input_tokens": 2076,
+        "output_tokens": 892
+      }
+    },
+    {
+      "case_id": "realistic-status_filter-7",
+      "variant": "wrong_classification",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Classified as genuine change, but the contract reconciliation shows a $16,556.38 reporting error.",
+        "Blocking: Classification as 'genuine_change' ignores a contract defect: the contract requires status='paid' only, but current SQL uses status IN ('paid','pending').",
+        "Blocking: Claim that all movement is genuine and the calculation is correct conflicts with reconciliation: current error is 1,655,638 cents ($16,556.38) across 181 pending orders (E5; E4 vs E2), while genuine underlying change is 11,887,574 cents ($118,875.74).",
+        "Blocking: No root cause, correction SQL, or repair verification is provided, so the statement that no change is needed is unsupported and false."
+      ],
+      "usage": {
+        "input_tokens": 1772,
+        "output_tokens": 1056
+      }
+    },
+    {
+      "case_id": "realistic-status_filter-7",
+      "variant": "unverified_fix",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: The proposed correction failed the independent per-order verification.",
+        "Blocking: Correction does not repair the defect: correction_sql is identical to the current defective SQL (status IN ('paid','pending')), and repair_verification.verified=false\u2014actual $318,953.19 vs expected $302,396.81 with 181 unexpected pending rows. The diagnosed amounts and mixed_change classification are otherwise supported by the four-way replay and reconciliation."
+      ],
+      "usage": {
+        "input_tokens": 2056,
+        "output_tokens": 815
+      }
+    },
+    {
+      "case_id": "realistic-holiday_growth-7",
+      "variant": "control",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Growth decomposition double-counts Nov 24: diagnosis attributes ~$117,100 from orders >=2026-11-24 (E5: $117,100.51) plus ~$6,884 late-arriving pre-Nov-24 orders, totaling ~$123,984, which exceeds the reconciled $118,875.74 increase by $5,108.59. Evidence implies the previous snapshot already contained $5,108.59 for Nov 24 (E1 total $183,521.07 minus E9 pre-Nov-24 $178,412.48), so the incremental ",
+        "Blocking: Relatedly, 'Nov 24 snapshot stopped at 2026-11-24' is imprecise as written: the previous snapshot evidently included the Nov 24 orders ($5,108.59), so that date cannot be presented as wholly new in the current snapshot.",
+        "Minor: Current revenue is misstated as $302,397.81; reconciliation and E4 show $302,396.81, a $1.00 discrepancy under the $5 non-blocking threshold."
+      ],
+      "usage": {
+        "input_tokens": 1949,
+        "output_tokens": 1942
+      }
+    },
+    {
+      "case_id": "realistic-holiday_growth-7",
+      "variant": "wrong_amount",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Headline amounts conflict with replay E1/E4 and reconciliation: diagnosis claims $256,929 to $423,357 (+$166,426), but evidence is $183,521.07 to $302,396.81 (+$118,875.74).",
+        "Blocking: Attribution amounts conflict with cited evidence: diagnosis claims ~$163,940 from >=2026-11-24, Nov 27 $54,844, Nov 30 $38,328, and ~$9,638 late-arriving pre-Nov-24. E5/E8 show late-Nov $117,100.51, Nov 27 $39,174.16 (382 orders), Nov 30 $27,377.01 (276 orders); E5 vs E9 early-Nov increase is $6,883.82.",
+        "Minor: Classification as genuine/data change is supported: SQL is identical, four-way replay isolates snapshot, reconciliation errors are 0, and E6/E7 support no duplicates and correct refund/status exclusion."
+      ],
+      "usage": {
+        "input_tokens": 1939,
+        "output_tokens": 1226
+      }
+    },
+    {
+      "case_id": "realistic-holiday_growth-7",
+      "variant": "fabricated_claim",
+      "verdict": "challenged",
+      "concerns": [
+        "Blocking: Unsupported timezone claim: the diagnosis states a timezone shift moved 312 Nov 30 orders into December, explaining a further $9,400. No cited evidence shows timezone movement, 312 orders, or $9,400, and no such amount is in the reconciliation.",
+        "Blocking: Decomposition does not reconcile: $117,100.51 late-Nov (E5) plus ~$6,883.82 early-Nov increase (E5 vs E9) totals $123,984.33, exceeding the actual $118,875.74 increase by $5,108.59 \u2014 the Nov 24 amount already present in the previous snapshot (E1 minus E9). The late-Nov incremental contribution is $111,991.92, not $117,100 as an addition to the early increase.",
+        "Minor: Diagnosis writes current revenue as $302,397.81; reconciliation and replay show $302,396.81, a $1.00 discrepancy under the $5 minor threshold."
+      ],
+      "usage": {
+        "input_tokens": 1975,
+        "output_tokens": 1495
+      }
+    }
+  ]
+}
