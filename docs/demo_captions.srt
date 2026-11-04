@@ -1,0 +1,31 @@
+1
+00:00:00,300 --> 00:00:13,842
+Eight A M. The monthly cost review is at ten. Paid inpatient claims for November just jumped forty percent overnight. Some claims run-out is normal. So is this real, or is the dashboard wrong?
+
+2
+00:00:14,661 --> 00:00:27,608
+DataTrace is a Meta agent that answers that question with evidence. It runs real SQL, separates genuine change from reporting errors down to the individual claim, and only reports a fix after an independent check verifies it.
+
+3
+00:00:28,413 --> 00:00:42,426
+An actuary leaves a voice note. Muse Voice Transcribe turns it into text, and Muse Spark reads the note and the dashboard screenshot, and drafts the metric definition: paid claims, November service month, net of reversals.
+
+4
+00:00:43,242 --> 00:01:09,874
+Now Muse Spark works as an agent, on real-format CMS Medicare claims. It never sees the raw rows. It forms hypotheses, like duplicate eligibility rows, members dropped by a join, and date or reversal boundaries, and tests each one with a bounded, read-only query. It checks a corrected query against an independent claim-by-claim verifier, and a second model, Muse Wonder, reviews the diagnosis against the evidence.
+
+5
+00:01:10,686 --> 00:01:34,948
+The verdict. Of a 5.21 million dollars jump, 4.56 million dollars is genuine claims run-out. 649,400 dollars is a reporting error. The eligibility rebuild gave members who switched coverage two rows, double counting their claims, while deceased members were dropped. The fix is verified claim by claim, and here is the brief for the cost review.
+
+6
+00:01:35,775 --> 00:01:53,625
+When the definition is missing, DataTrace does not guess. The agent pauses and asks whether reversals should net against paid claims. I answer: include them, net paid. The same investigation resumes from where it paused, finishes, verifies its fix, and is reviewed again.
+
+7
+00:01:56,955 --> 00:02:24,846
+We measured it in 360 paid runs against the same Meta model given every raw row and no tools. The agent was correct in 179 of 180. On realistic incidents the baseline usually names the right category, but put the right dollar amounts on it in only 12/24 runs, against 24/24 for the agent. At forty-two thousand rows, the raw data no longer fits in the context window, and only the agent can investigate.
+
+8
+00:02:25,657 --> 00:02:42,514
+We also stress-tested the reviewer. It caught 28 of 28 planted errors. Four Meta model roles, a sandboxed SQL engine, and a verifier the model cannot fool, all built during the hackathon. DataTrace. Evidence before explanations.

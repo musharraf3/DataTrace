@@ -101,7 +101,8 @@ def main():
                 "Median seconds": run.get("median_elapsed_seconds"),
             })
             chart.append({"Split": title.split(" (")[0], "System": "DataTrace agent" if mode == "meta" else "No-tools baseline",
-                          "Correct": run["correct"] / max(n, 1)})
+                          "Correct": run["correct"] / max(n, 1),
+                          "Dollars": (split_ok / split_n) if split_n else (0.0 if run["errors"] == n else None)})
             per_split[split][mode] = {"correct": run["correct"], "n": n, "tokens": tokens_in / max(n, 1),
                                                      "usd": usd / max(n, 1), "errors": run["errors"]}
             errors = sorted({c.get("error_message", "")[:90] for c in run["cases"] if c.get("error")})

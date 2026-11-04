@@ -543,7 +543,8 @@ def _play(events, container, speed=5.0):
     last = None
     for event in events:
         if last is not None:
-            time.sleep(min(1.0, max(0.0, (event.get("t", last) - last) / speed)))
+            cap = 3.0 if speed < 5 else 1.0  # Slow demo replays keep visible pauses between model turns.
+            time.sleep(min(cap, max(0.0, (event.get("t", last) - last) / speed)))
         last = event.get("t", last or 0)
         _event(container, event)
 
@@ -559,19 +560,28 @@ def _benchmark_tab():
     st.subheader("Does giving the Meta model tools, a verifier and a reviewer actually help?")
     st.markdown(data.get("headline", ""))
     chart_rows = pd.DataFrame(data.get("chart", []))
-    if not chart_rows.empty:
-        chart_rows["Label"] = chart_rows["Correct"].map(lambda v: f"{v:.0%}" if v > 0 else "0% · could not run")
-        base = alt.Chart(chart_rows).encode(
-            x=alt.X("System:N", title=None, axis=alt.Axis(labelAngle=0, labelLimit=200)),
-            y=alt.Y("Correct:Q", title="Correct diagnoses", axis=alt.Axis(format="%"), scale=alt.Scale(domain=[0, 1.1])))
+
+    def _facet(frame, field, title, width):
+        frame = frame.dropna(subset=[field]).copy()
+        frame["Label"] = frame[field].map(lambda v: f"{v:.0%}" if v > 0 else "0% · could not run")
+        base = alt.Chart(frame).encode(
+            x=alt.X("System:N", title=None, axis=alt.Axis(labelAngle=0, labelLimit=120, labelFontSize=10)),
+            y=alt.Y(f"{field}:Q", title=title, axis=alt.Axis(format="%"), scale=alt.Scale(domain=[0, 1.12])))
         bars = base.mark_bar(cornerRadius=3).encode(
             color=alt.Color("System:N", scale=alt.Scale(range=["#214ed3", "#98a2b3"]), legend=None),
-            tooltip=["Split", "System", alt.Tooltip("Correct:Q", format=".0%")])
-        text = base.mark_text(dy=-8, fontWeight="bold", color="#17264a").encode(text="Label:N")
-        chart = alt.layer(bars, text, data=chart_rows).properties(width=200, height=230).facet(
-            column=alt.Column("Split:N", title=None, sort=list(dict.fromkeys(chart_rows["Split"])),
-                              header=alt.Header(labelFontSize=13)))
-        st.altair_chart(chart)
+            tooltip=["Split", "System", alt.Tooltip(f"{field}:Q", format=".0%")])
+        text = base.mark_text(dy=-8, fontWeight="bold", color="#17264a", fontSize=11).encode(text="Label:N")
+        return alt.layer(bars, text, data=frame).properties(width=width, height=210).facet(
+            column=alt.Column("Split:N", title=None, sort=list(dict.fromkeys(frame["Split"])),
+                              header=alt.Header(labelFontSize=12)))
+
+    if not chart_rows.empty:
+        if "Dollars" in chart_rows:
+            st.markdown("**Right dollars on the real change and the reporting error**: the number a finance or actuarial lead acts on")
+            dollars = chart_rows[chart_rows["Split"].isin(["Realistic", "Healthcare claims", "Warehouse scale"])]
+            st.altair_chart(_facet(dollars, "Dollars", "Dollar split correct", 190))
+        st.markdown("**Correct diagnosis** (category only)")
+        st.altair_chart(_facet(chart_rows, "Correct", "Correct diagnoses", 128))
     st.dataframe(pd.DataFrame(data["table"]), hide_index=True, width="stretch")
     st.caption(data.get("method", ""))
     reviewer_path = RESULTS / "reviewer_eval.json"
@@ -673,9 +683,10 @@ def _deep_link():
         mode = {"recorded": RECORDED_MODE, "offline": OFFLINE, "live": LIVE}.get(params.get("mode", ""))
         return {"incident_index": names.index(incident) if incident in names else None, "mode": mode,
                 "autorun": params.get("autorun") == "1" and mode in {RECORDED_MODE, OFFLINE},
-                "fast": params.get("fast") == "1"}
+                "fast": params.get("fast") == "1",
+                "speed": min(100.0, max(1.0, float(params.get("speed", "5")))) if str(params.get("speed", "5")).replace(".", "", 1).isdigit() else 5.0}
     except Exception:
-        return {"incident_index": None, "mode": None, "autorun": False, "fast": False}
+        return {"incident_index": None, "mode": None, "autorun": False, "fast": False, "speed": 5.0}
 
 
 def _context_key(case, mode, scenario_key):
@@ -691,7 +702,7 @@ def main():
     <div class="trace-brand">DATATRACE · AN AGENT THAT EXPLAINS WHY A METRIC MOVED</div>
     <h1>Is the jump real, or is the dashboard wrong?</h1>
     <p>DataTrace's Meta agent investigates a metric change with executed SQL evidence, separates genuine business movement
-    from reporting errors down to the order, and reports a fix only after an independent check verifies it.</p>
+    from reporting errors down to the individual claim or order, and reports a fix only after an independent check verifies it.</p>
     <div class="models">Powered by <code>muse-spark-1.3</code> agent · <code>muse-wonder-1.0</code> reviewer · <code>muse-voice-transcribe-1.0</code> intake</div>
     </div>""", unsafe_allow_html=True)
     key_ready = bool(os.environ.get("MODEL_API_KEY", "").strip()) or (
@@ -772,7 +783,8 @@ def main():
                 if mode == RECORDED_MODE:
                     recording = json.loads(_recorded_path(choice).read_text(encoding="utf-8"))
                     report = recording.get("resumed") or recording["report"]
-                    _play(report.get("events", [])[len(paused.get("events", [])):], box)
+                    _play(report.get("events", [])[len(paused.get("events", [])):], box,
+                          speed=1e9 if link["fast"] else link["speed"])
                 else:
                     ok, why = _budget_ok("investigation")
                     if not ok:
@@ -813,7 +825,7 @@ def main():
                     recording = json.loads(path.read_text(encoding="utf-8"))
                     report = recording.get("paused") or recording["report"]
                     st.session_state.get("refund_answers", {}).pop(scenario_key, None)
-                    _play(report.get("events", []), box, speed=1e9 if link["fast"] else 5.0)
+                    _play(report.get("events", []), box, speed=1e9 if link["fast"] else link["speed"])
                 else:
                     report = offline_walkthrough(case)
                 paused_now = report.get("status") == "needs_clarification"

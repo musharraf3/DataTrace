@@ -36,3 +36,7 @@ Thumbs.db
 
 # Local-only planning notes (not published)
 private/
+
+# Demo-video build scratch
+docs/video/frames.txt
+docs/video/narration.wav

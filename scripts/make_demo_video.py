@@ -64,7 +64,8 @@ def narration():
                     f"rebuild gave members who switched coverage two rows, double counting their claims, while deceased "
                     f"members were dropped. The fix is verified claim by claim, and here is the brief for the cost review."),
         ("clarify", "When the definition is missing, DataTrace does not guess. The agent pauses and asks whether reversals "
-                    "should net against paid claims. I answer, and the same investigation resumes."),
+                    "should net against paid claims. I answer: include them, net paid. The same investigation resumes "
+                    "from where it paused, finishes, verifies its fix, and is reviewed again."),
         ("benchmark", f"We measured it in {runs} paid runs against the same Meta model given every raw row and no tools. "
                       f"The agent was correct in {agent_ok} of {agent_n}. On realistic incidents the baseline usually names "
                       f"the right category, but put the right dollar amounts on it in only {split.get('Same', 'half')} "
@@ -122,64 +123,94 @@ class CDP:
 
 
 CLICK = """(t => { const el = [...document.querySelectorAll('button, [role=tab], summary, label, p')]
-  .find(e => e.innerText && e.innerText.trim().startsWith(t)); if (el) { el.scrollIntoView({block:'center'}); el.click(); return true } return false })(%s)"""
+  .find(e => e.innerText && e.innerText.trim().startsWith(t)); if (!el) return false;
+  el.scrollIntoView({block:'center'});
+  const box = el.closest('label') && el.closest('label').querySelector('input[type=checkbox]');
+  (box || el).click(); return true })(%s)"""
 SCROLL_TO = "(s => { const el = document.querySelector(s); if (el) el.scrollIntoView({behavior:'smooth', block:'start'}); return !!el })(%s)"
 
 
-async def scene_actions(cdp, name):
+async def wait_for(cdp, text, seconds=60):
+    for _ in range(int(seconds * 2)):
+        if await cdp.js(f"document.body.innerText.includes({json.dumps(text)})"):
+            return True
+        await asyncio.sleep(0.5)
+    return False
+
+
+async def prepare(cdp, name):
+    """Get the screen ready for a scene. Time spent here is cut from the final video."""
     if name == "dashboard":
         image = base64.b64encode((ROOT / "examples/claims_dashboard_screenshot.png").read_bytes()).decode()
         html = ("<html><body style='margin:0;background:#0b1736;display:flex;align-items:center;justify-content:center;"
                 f"height:100vh'><img src='data:image/png;base64,{image}' style='width:88%;border-radius:14px;"
                 "box-shadow:0 20px 60px rgba(0,0,0,.5)'></body></html>")
         await cdp.send("Page.navigate", url="data:text/html;base64," + base64.b64encode(html.encode()).decode())
+        await asyncio.sleep(1.5)
     elif name == "hero":
         await cdp.send("Page.navigate", url=APP + "?incident=eligibility_spans&mode=live")
-        await asyncio.sleep(7)
+        await wait_for(cdp, "Is the jump real")
+        await asyncio.sleep(1.5)
     elif name == "intake":
         await cdp.js(CLICK % json.dumps("① Start from what you saw"))
         await asyncio.sleep(1.5)
-        await cdp.js(CLICK % json.dumps("Use the sample voice note"))
-        await asyncio.sleep(1.5)
-        await cdp.js(CLICK % json.dumps("Use the sample dashboard screenshot"))
-        await asyncio.sleep(1.5)
-        await cdp.js(CLICK % json.dumps("Draft the investigation with Meta"))
-        for _ in range(30):
-            await asyncio.sleep(1)
-            if await cdp.js("document.body.innerText.includes('Draft from muse-spark')"):
-                break
-        await cdp.js("window.scrollBy({top: 420, behavior: 'smooth'})")
     elif name == "investigate":
-        await cdp.send("Page.navigate", url=APP + "?incident=eligibility_spans&mode=recorded&autorun=1")
-        for _ in range(60):
-            await asyncio.sleep(1)
-            await cdp.js("window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});"
-                         "document.querySelector('section.main, [data-testid=stMain]')?.scrollTo?.({top: 1e6, behavior: 'smooth'})")
-            if await cdp.js("document.body.innerText.includes('VERDICT')"):
-                break
+        await cdp.send("Page.navigate", url=APP + "?incident=eligibility_spans&mode=recorded&autorun=1&speed=2")
+        await wait_for(cdp, "Replayed both SQL versions")
     elif name == "verdict":
+        await wait_for(cdp, "VERDICT", 120)
+        await asyncio.sleep(1)
         await cdp.js(SCROLL_TO % json.dumps(".verdict"))
-        await asyncio.sleep(9)
-        await cdp.js("window.scrollBy({top: 520, behavior: 'smooth'})")
+        await asyncio.sleep(1.5)
     elif name == "clarify":
         await cdp.send("Page.navigate", url=APP + "?incident=reversal_policy&mode=recorded&autorun=1&fast=1")
-        await asyncio.sleep(9)
+        await wait_for(cdp, "PAUSED TO ASK", 60)
+        await asyncio.sleep(1)
         await cdp.js(SCROLL_TO % json.dumps(".verdict"))
-        await asyncio.sleep(4)
+        await asyncio.sleep(1.5)
+    elif name == "benchmark":
+        await cdp.js("window.scrollTo({top: 0})")
+        await cdp.js(CLICK % json.dumps("📊 Agent vs. baseline benchmark"))
+        await asyncio.sleep(3)
+    elif name == "how":
+        await cdp.js("window.scrollTo({top: 0})")
+        await cdp.js(CLICK % json.dumps("⚙️ How it works"))
+        await asyncio.sleep(2)
+
+
+async def during(cdp, name, duration):
+    """What happens on screen while the narration for a scene plays. Returns when the scene may end."""
+    began = time.time()
+    if name == "intake":
+        await cdp.js(CLICK % json.dumps("Use the sample voice note"))
+        await asyncio.sleep(2)
+        await cdp.js(CLICK % json.dumps("Use the sample dashboard screenshot"))
+        await asyncio.sleep(2.5)
+        await cdp.js("window.scrollBy({top: 380, behavior: 'smooth'})")
+    elif name == "investigate":
+        follow = ("(() => { const box = [...document.querySelectorAll('[data-testid=stExpanderDetails]')].pop();"
+                  " const items = box ? box.querySelectorAll('[data-testid=stMarkdownContainer], [data-testid=stCode]') : [];"
+                  " const last = items[items.length - 1]; if (last) last.scrollIntoView({block: 'end', behavior: 'smooth'}); })()")
+        while time.time() - began < duration:
+            await cdp.js(follow)
+            await asyncio.sleep(1.0)
+    elif name == "verdict":
+        await asyncio.sleep(min(10, duration / 2))
+        await cdp.js("window.scrollBy({top: 520, behavior: 'smooth'})")
+    elif name == "clarify":
+        await asyncio.sleep(5)
         await cdp.js(CLICK % json.dumps("Include reversals"))
-        for _ in range(40):
-            await asyncio.sleep(1)
-            if await cdp.js("document.body.innerText.includes('Resumed after the analyst')"):
-                break
+        await wait_for(cdp, "Resumed after the analyst", 40)
+        await asyncio.sleep(1)
         await cdp.js(SCROLL_TO % json.dumps(".verdict"))
     elif name == "benchmark":
-        await cdp.js(CLICK % json.dumps("📊 Agent vs. baseline benchmark"))
-        await asyncio.sleep(10)
-        await cdp.js("window.scrollBy({top: 520, behavior: 'smooth'})")
-    elif name == "how":
-        await cdp.js("window.scrollTo({top: 0, behavior: 'smooth'})")
-        await asyncio.sleep(1)
-        await cdp.js(CLICK % json.dumps("⚙️ How it works"))
+        await asyncio.sleep(min(12, duration / 2))
+        await cdp.js("window.scrollBy({top: 560, behavior: 'smooth'})")
+    remaining = duration + 0.8 - (time.time() - began)
+    if remaining > 0:
+        await asyncio.sleep(remaining)
+    if name == "clarify":
+        await asyncio.sleep(2.5)  # Hold on the resumed verdict.
 
 
 async def record(scenes, audio_paths, durations, frame_dir):
@@ -198,44 +229,52 @@ async def record(scenes, audio_paths, durations, frame_dir):
         async with websockets.connect(ws_url, max_size=50_000_000) as ws:
             cdp = CDP(ws)
             reader = asyncio.ensure_future(cdp.reader(frame_dir))
+            await cdp.send("Page.enable")
             await cdp.send("Emulation.setDeviceMetricsOverride", width=W, height=H, deviceScaleFactor=1, mobile=False)
             await cdp.send("Emulation.setEmulatedMedia", features=[{"name": "prefers-color-scheme", "value": "light"}])
+            await cdp.send("Page.navigate", url=APP + "?incident=eligibility_spans&mode=live")  # Warm caches.
+            await wait_for(cdp, "Is the jump real")
             await cdp.send("Page.startScreencast", format="jpeg", quality=85, maxWidth=W, maxHeight=H, everyNthFrame=1)
-            starts = []
+            windows = []
             for (name, _), duration in zip(scenes, durations):
+                await prepare(cdp, name)
                 start = time.time()
-                starts.append(start)
-                await scene_actions(cdp, name)
-                remaining = duration + 0.6 - (time.time() - start)
-                if remaining > 0:
-                    await asyncio.sleep(remaining)
-                print(f"scene {name}: {time.time() - start:.1f}s (narration {duration:.1f}s)", flush=True)
-            end = time.time()
+                await during(cdp, name, duration)
+                windows.append((start, time.time()))
+                print(f"scene {name}: {windows[-1][1] - start:.1f}s (narration {duration:.1f}s)", flush=True)
             await cdp.send("Page.stopScreencast")
             reader.cancel()
-            return starts, end, cdp.frames
+            return windows, cdp.frames
     finally:
         chrome.terminate()
 
 
-def build(starts, end, frames, audio_paths):
+def build(windows, frames, audio_paths):
+    """Concatenate only the narrated windows; preparation time is cut."""
     import imageio_ffmpeg
     ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-    t0 = starts[0]
-    frames = [(ts, path) for ts, path in frames if ts >= t0 - 1]
     listing = OUT / "frames.txt"
+    offsets, cursor = [], 0.0
     with listing.open("w", encoding="utf-8") as handle:
-        for index, (ts, path) in enumerate(frames):
-            nxt = frames[index + 1][0] if index + 1 < len(frames) else end
-            handle.write(f"file '{path.as_posix()}'\nduration {max(0.034, nxt - max(ts, t0)):.3f}\n")
-        handle.write(f"file '{frames[-1][1].as_posix()}'\n")
+        last = None
+        for start, end in windows:
+            offsets.append(cursor)
+            before = [f for f in frames if f[0] <= start]
+            inside = [f for f in frames if start < f[0] < end]
+            shots = ([(start, before[-1][1])] if before else []) + inside
+            for index, (ts, path) in enumerate(shots):
+                nxt = shots[index + 1][0] if index + 1 < len(shots) else end
+                handle.write(f"file '{path.as_posix()}'\nduration {max(0.034, nxt - ts):.3f}\n")
+                last = path
+            cursor += end - start
+        handle.write(f"file '{last.as_posix()}'\n")
     rate = 16000
-    audio = bytearray(int((end - t0) * rate) * 2)
-    for start, path in zip(starts, audio_paths):
+    audio = bytearray(int((cursor + 1) * rate) * 2)
+    for offset, path in zip(offsets, audio_paths):
         with wave.open(str(path)) as handle:
             data = handle.readframes(handle.getnframes())
-        offset = int((start - t0 + 0.3) * rate) * 2
-        audio[offset:offset + len(data)] = data[: max(0, len(audio) - offset)]
+        at = int((offset + 0.3) * rate) * 2
+        audio[at:at + len(data)] = data[: max(0, len(audio) - at)]
     track = OUT / "narration.wav"
     with wave.open(str(track), "wb") as handle:
         handle.setnchannels(1)
@@ -246,16 +285,16 @@ def build(starts, end, frames, audio_paths):
     subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(listing), "-i", str(track),
                     "-vf", "fps=30,scale=1440:900,format=yuv420p", "-c:v", "libx264", "-preset", "medium", "-crf", "22",
                     "-c:a", "aac", "-b:a", "128k", "-shortest", str(target)], check=True)
-    return target
+    return target, offsets, cursor
 
 
-def captions(scenes, starts, durations):
+def captions(scenes, offsets, durations):
     def stamp(seconds):
         ms = int(round(seconds * 1000))
         return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
-    blocks, t0 = [], starts[0]
-    for index, ((_, text), start, duration) in enumerate(zip(scenes, starts, durations), 1):
-        blocks.append(f"{index}\n{stamp(start - t0 + 0.3)} --> {stamp(start - t0 + 0.3 + duration)}\n{text}\n")
+    blocks = []
+    for index, ((_, text), offset, duration) in enumerate(zip(scenes, offsets, durations), 1):
+        blocks.append(f"{index}\n{stamp(offset + 0.3)} --> {stamp(offset + 0.3 + duration)}\n{text}\n")
     (ROOT / "docs" / "demo_captions.srt").write_text("\n".join(blocks), encoding="utf-8")
 
 
@@ -271,10 +310,10 @@ def main():
         durations.append(speak(text, path))
         audio_paths.append(path)
     print(f"narration total {sum(durations):.0f}s", flush=True)
-    starts, end, frames = asyncio.run(record(scenes, audio_paths, durations, frame_dir))
-    captions(scenes, starts, durations)
-    target = build(starts, end, frames, audio_paths)
-    print(f"video: {target} ({end - starts[0]:.0f}s, {len(frames)} frames)")
+    windows, frames = asyncio.run(record(scenes, audio_paths, durations, frame_dir))
+    target, offsets, total = build(windows, frames, audio_paths)
+    captions(scenes, offsets, durations)
+    print(f"video: {target} ({total:.0f}s, {len(frames)} frames)")
 
 
 if __name__ == "__main__":

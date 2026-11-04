@@ -1,19 +1,19 @@
 # X post for the Most Viral bonus (optional)
 
-Engagement counts through **Nov 8**, so post right after you submit. Attach a 30–45 s clip: the live agent timeline, then the verdict card.
+Engagement counts through **Nov 8**, so post right after you submit. Attach a 30–45 s clip: the live agent timeline, then the verdict card (trim `docs/video/datatrace-demo.mp4` from about 0:43 to 1:35).
 
 **Post**
 
-> Revenue jumped 68% overnight. Is it real, or is the dashboard wrong?
+> Paid claims jumped 40% overnight. Is it real, or is the dashboard wrong?
 >
-> I built DataTrace for the @AIatMeta hackathon: a Muse Spark agent that investigates a metric change with real SQL evidence, never sees raw rows, and only reports a fix after an independent check verifies it, order by order.
+> I built DataTrace for the @AIatMeta hackathon: a Muse Spark agent that investigates with real SQL on CMS Medicare claims, never sees raw rows, and only reports a fix after it's verified claim by claim.
 >
-> It found $115K of real Black Friday growth and $13,966 of CRM-migration join bug. A second model (Muse Wonder) reviews every diagnosis.
+> $4.56M real run-out. $649K eligibility bug. Muse Wonder reviews every call.
 >
 > 🎥 [video link]  💻 github.com/musharraf3/DataTrace
 
 **Reply in the thread**
 
-> The surprise: the same model without tools matched it on small data, by reading every row. At 42k orders the raw data is 2M tokens and doesn't fit in context. The agent solved 10/10 because it only reads what it queries. Tools > context.
+> The surprise: the same model with every raw row pasted in usually names the right problem, but put the right dollars on it in only 4/16 claims runs. The agent: 16/16. At 42k rows the raw data doesn't even fit in context. Tools beat context.
 
-Tag `@cerebral_valley` if the participant guide asks for it. Check the exact handles in the guide before posting.
+Check the participant guide for the exact handles to tag before posting.

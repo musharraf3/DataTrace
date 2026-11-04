@@ -16,65 +16,71 @@ Deadline: **Wednesday Nov 4, 2026, 6:00 PM PT / 9:00 PM ET**. Submit early in th
 ## Short versions (for fields with character limits)
 
 **One line (under 120 characters)**
-> An agent that tells you if a metric jump is real or the dashboard is wrong, and proves it with verified SQL.
+> An agent that tells you if a claims or revenue jump is real or a data bug, and proves it with verified SQL.
 
 **About 280 characters**
-> DataTrace is a Muse Spark agent that investigates why a business metric moved. It runs sandboxed SQL, never sees raw rows, verifies every fix order by order, pauses to ask when a definition is missing, and gets a second opinion from Muse Wonder.
+> DataTrace is a Muse Spark agent that investigates why a healthcare cost or revenue metric moved. It runs sandboxed SQL, never sees raw rows, verifies every fix claim by claim, asks when a definition is missing, and gets a second opinion from Muse Wonder.
 
 **About 500 characters**
-> DataTrace investigates the question analysts get before every leadership review: is this metric jump real? A Muse Spark agent tests hypotheses with bounded, read-only SQL, separates genuine growth from reporting bugs down to the order, and only reports a fix after an independent per-order check passes. Muse Wonder reviews each diagnosis; voice and screenshot intake start an investigation. In 320 benchmark runs it scored 159/160, and it still works at 42k orders, where the no-tools baseline can't run.
+> Every month, claims and finance teams ask: is this cost jump real? DataTrace's Muse Spark agent tests hypotheses with bounded, read-only SQL on real-format CMS Medicare claims, separates genuine run-out from data defects down to the claim, and only reports a fix after an independent check passes. Muse Wonder reviews each diagnosis (it caught 28/28 planted errors). Against the same model reading raw rows, the agent got the dollar split right in 16/16 claims runs vs 4/16.
 
 ## GitHub repository "About" box
 
 Set it on the repo page via the gear icon next to **About**:
 
-- **Description:** `Meta-model agent that explains why a business metric moved and verifies the fix order by order. Muse Spark + Muse Wonder.`
-- **Topics:** `meta-ai`, `muse-spark`, `ai-agents`, `tool-calling`, `sql`, `data-quality`, `analytics`, `streamlit`, `hackathon`
+- **Description:** `Meta-model agent that explains why a healthcare cost or revenue metric moved and verifies the fix claim by claim. Muse Spark + Muse Wonder.`
+- **Topics:** `meta-ai`, `muse-spark`, `ai-agents`, `tool-calling`, `healthcare-analytics`, `claims`, `cms-synpuf`, `sql`, `data-quality`, `streamlit`, `hackathon`
 - **Website:** your Streamlit Cloud URL if you deploy one, otherwise the video link.
 
 ## Project description
 
-DataTrace is an AI investigator for the question every analyst gets before a leadership review: "This metric jumped. Is it real, or is the dashboard wrong?"
+Every month, healthcare finance, actuarial and analytics teams get the same question before the cost review: paid claims jumped, so is it real? Claims data makes it hard. Late claims keep arriving for weeks (run-out), adjudication is pending, reversals net against paid, and eligibility files get rebuilt. A genuine trend and a data defect often land in the same month.
 
-You give it the previous and current SQL, two data snapshots, and the metric's definition, or simply a stakeholder's voice note and a dashboard screenshot. A Muse Spark agent then investigates like an analyst would. It replays old and new SQL on old and new data, forms hypotheses (duplicate join keys, dropped records, date and status boundaries, refund treatment), and tests each with bounded, read-only SQL in a local sandbox. It never sees raw rows, only the results of its own queries.
+DataTrace gives that question to a Muse Spark agent with real tools. Given the previous and current SQL, two data snapshots and the metric definition (or just an actuary's voice note and a dashboard screenshot), it:
 
-When it proposes a fix, an independent deterministic checker verifies the complete per-order result against the metric contract. A second model, Muse Wonder, reviews the diagnosis against the evidence and can send the agent back to revise. If the definition is incomplete, the agent pauses and asks the analyst instead of guessing.
+- replays old and new SQL on old and new data;
+- tests hypotheses (duplicate eligibility rows, members dropped by joins, service-date boundaries, pending claims, reversals) with bounded, read-only SQL in a local sandbox, never seeing raw rows;
+- reports a fix only after a deterministic checker verifies the complete per-claim result;
+- gets an independent review from Muse Wonder, which can send it back to revise;
+- pauses and asks when the definition is incomplete, instead of guessing.
 
-In the flagship Black Friday incident (4,122 orders), DataTrace showed that of a +$129,045 jump, $115,080 was genuine growth and $13,966 was a CRM-migration join bug: $25,521 double-counted minus $11,555 dropped. It produced verified corrected SQL and a two-sentence CFO brief.
+On real-format CMS DE-SynPUF Medicare claims, it showed that of a +$5.21M jump in November paid claims, $4.56M was genuine run-out and $649,400 was an eligibility-rebuild defect across 69 claims. It produced verified corrected SQL and a leadership brief. The same engine runs retail revenue incidents through a domain profile.
 
-Across 320 paid benchmark runs against the same Meta model given all the raw rows and no tools, the agent scored 159/160 versus 150/160. On data that fits in a prompt both were accurate, but on realistic incidents the agent used 14× fewer input tokens and cost 4.3× less. At warehouse scale (42k orders, 2.06M tokens of raw data) the no-tools approach could not run at all (context_length_exceeded), while the agent solved 10/10.
+Across 360 paid benchmark runs against the same model given every raw row and no tools, the agent scored 179/180 versus 168/180. More importantly, it put the right dollar amounts on real change and reporting error in 16/16 claims runs versus 4/16. At 42k rows the no-tools approach cannot run at all (context_length_exceeded). In a planted-error test, the reviewer caught 28/28 errors.
 
 ## Meta products used
 
-- **Meta Model API, Responses API** with client-side function calling, parallel tool calls, `previous_response_id` conversation state, reasoning effort control, reasoning summaries, and JSON-schema structured output.
-- **muse-spark-1.3**: the investigator agent (tools `query_snapshot`, `verify_correction`, `request_clarification`) and vision intake from dashboard screenshots.
-- **muse-wonder-1.0**: independent reviewer with a structured verdict, which triggers revision and writes the stakeholder brief.
+- **Meta Model API, Responses API:** client-side function calling, parallel tool calls, `previous_response_id` state (including pause and resume for clarification), reasoning effort control, reasoning summaries, and JSON-schema structured output.
+- **muse-spark-1.3:** the investigator agent (tools `query_snapshot`, `verify_correction`, `request_clarification`) and vision intake from dashboard screenshots.
+- **muse-wonder-1.0:** an independent reviewer with concerns-first structured output and blocking or minor severity; it triggers revisions and writes the leadership brief.
 - **muse-voice-transcribe-1.0** (`/v1/asr/transcribe`): voice-note intake.
+- **Chat Completions endpoint:** an adapter, tested against Meta's API, that runs the same agent on open-weight Muse models via Baseten, Fireworks or Modal.
 
 ## Why Meta models are important to the solution
 
-The hard part of a metric investigation is judgement: deciding which hypothesis to test next, writing the right diagnostic query, and noticing when real growth and a bug are mixed together. Muse Spark does that judgement in a tool loop. Its 1M-token context and parallel tool calls let it plan several diagnostics per turn, and reasoning summaries let the analyst watch why it ran each query.
+The hard part of a claims investigation is judgement: which hypothesis to test next, which diagnostic query separates run-out from a join defect, and when a definition is missing. Muse Spark makes those decisions in a tool loop. Parallel tool calls and reasoning summaries let an analyst watch why it ran each query.
 
-Using a different Meta model, Muse Wonder, as the reviewer gives an independent second opinion rather than self-grading. Voice and vision intake let a stakeholder start an investigation from a voice note or screenshot.
+A different Meta model, Muse Wonder, gives an independent review rather than self-grading. Our planted-error test shows it catches every inflated amount, invented cause, flipped classification and unverified fix we planted. Voice and vision intake let a stakeholder start an investigation from a voice note or a screenshot.
 
-Local code supplies what a model shouldn't: sandboxed execution and a deterministic verifier, so a fix is only reported when it is proven order by order. The benchmark shows why the tool design matters. The same model without tools must read every raw row, which costs 14× more tokens and fails outright at warehouse scale.
+Local code supplies what a model shouldn't: sandboxed execution and a deterministic verifier. The benchmark shows why this design matters. The same model reading raw rows names the right category but gets the dollars wrong in most claims runs, and fails outright at warehouse scale.
 
 ## Feedback about Meta products
 
-- The Responses API's `previous_response_id` made the multi-turn tool loop and the pause-and-resume clarification simple: the investigation resumes hours later from one ID.
-- Parallel tool calls cut the flagship investigation from 85s (sequential, earlier prototype) to about 40–60s.
-- Reasoning summaries are excellent for agent UX: we stream them into the live timeline.
-- JSON-schema structured output was reliable for the reviewer verdict and intake draft.
-- `context_length_exceeded` errors are clear and include the token count, which made the scale experiment easy to report honestly.
-- Wishes: a documented way to cap spend hard (not only a notification), a field table for `/asr/transcribe` request options, and documentation of image-input limits.
+- `previous_response_id` made the multi-turn tool loop and the pause-and-resume clarification simple.
+- Parallel tool calls cut investigations from 85s (sequential prototype) to about 40–75s.
+- Reasoning summaries are excellent for agent UX; we stream them into the live timeline.
+- JSON-schema output was reliable. One lesson: field order matters. Asking for the verdict before the concerns made the reviewer commit early; putting concerns first raised planted-error catches from 19/28 to 28/28.
+- `context_length_exceeded` errors are clear and include the token count.
+- `tool_choice` currently supports only `"auto"`; supporting `"none"` would make forced-final turns simpler.
+- Wishes: a hard spend cap (not only a notification), a field table for `/asr/transcribe`, and documented image-input limits.
 
 ## Feedback about partner technologies
 
-No partner inference service was used. All inference ran on the Meta-hosted Model API.
+No partner inference was used in the submitted runs. The open-weight adapter is ready for Baseten, Fireworks or Modal (credits applied for).
 
 ## Before you click Submit
 
-- [ ] Repository is public and opens without signing in.
+- [ ] Repository is public and opens without signing in (done).
 - [ ] Video is 3:00 or less, plays in a private window, and shows the features built during the event.
 - [ ] Read the consent checkbox text yourself before ticking it.
 - [ ] After submitting, confirm the confirmation screen or email.
