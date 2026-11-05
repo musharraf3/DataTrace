@@ -18,10 +18,10 @@ from dotenv import load_dotenv  # noqa: E402
 
 from datatrace.cases import make_case  # noqa: E402
 from datatrace.meta import MetaClient, investigate_meta  # noqa: E402
-from datatrace.healthcare import SCENARIOS as CLAIMS, make_claims_case  # noqa: E402
+from datatrace.healthcare import RATE_SCENARIOS, SCENARIOS as CLAIMS, make_claims_case, make_rate_case  # noqa: E402
 from datatrace.scenarios import SCENARIOS, make_realistic_case  # noqa: E402
 
-CHOICES = [("synpuf", name) for name in CLAIMS] + [("realistic", name) for name in SCENARIOS] + [
+CHOICES = [("synpuf", name) for name in CLAIMS] + [("rate", name) for name in RATE_SCENARIOS] + [("realistic", name) for name in SCENARIOS] + [
     ("classic", name) for name in ["duplicate_join", "growth", "ambiguous", "dropped_records", "date_filter"]]
 
 
@@ -31,7 +31,7 @@ def _public(report):
 
 def record(choice):
     kind, name = choice
-    case = (make_claims_case(name) if kind == "synpuf" else
+    case = (make_claims_case(name) if kind == "synpuf" else make_rate_case(name) if kind == "rate" else
             make_realistic_case(name) if kind == "realistic" else make_case(name, 1))
     client = MetaClient()
     report = investigate_meta(case, client=client, review=True)

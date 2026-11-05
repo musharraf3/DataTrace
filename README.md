@@ -59,11 +59,37 @@ The healthcare incidents use the **CMS 2008-2010 Data Entrepreneurs' Synthetic P
 
 Table names, column names, value vocabulary and labels are a **domain profile** (`src/datatrace/domains.py`), not code. The healthcare domain speaks `claims`, `eligibility`, `claim_id`, `paid_cents`, `denied` and `reversal`; the retail domain speaks `orders`, `customers` and `refund`. The agent, sandbox and per-row verifier are shared, so a new domain is configuration.
 
+## Rate metrics: did cost per member really fall?
+
+Medical economics teams watch rates, not totals: **PMPM** (paid claims per member per month) and **admissions per 1,000** member-years. A rate has two places to be wrong, so DataTrace verifies both. The numerator keeps its claim-by-claim check. The denominator, member months, is checked the same way: every `(member_id, month)` in the window exactly once. The rate reconciliation splits the real change and the reporting error into numerator and denominator effects, using exact fractions.
+
+> **Rate result** (real recorded run, `muse-spark-1.3` with `muse-wonder-1.0` review): the dashboard shows November inpatient **PMPM falling 26%, from $131.31 to $97.21**, and care management wants to call it a program win. **It actually rose 36%, to $177.95.** The enrollment table was rebuilt with one row per coverage line, so 8,032 members with Part D got a second, pharmacy row and member months jumped from 9,670 to 17,702. That is **-$80.74 PMPM of reporting error, all from the denominator**. The agent found the pharmacy rows in six tool calls, wrote a denominator that passed verification, and its summary ends "Do not report as a program win." The reviewer supported it. Cost: about $0.08.
+
+The population is real: every 2009 Medicare beneficiary in California in DE-SynPUF Sample 1 with full-year Part A coverage, including members with no claims (a member-month denominator needs them), with real death dates and Part D coverage (`examples/synpuf/enrollment_extract.json`, 345 KB). Three rate incidents: the PMPM drop above, the same rebuild on admissions per 1,000 (178.7 to a reported 121.3, really 222.1), and genuine PMPM run-out with no defect. All three live runs were classified correctly, and the two needed denominator fixes verified.
+
+```powershell
+.\.venv\Scripts\python.exe -m datatrace sample --rate pmpm_coverage_lines --output pmpm.json
+.\.venv\Scripts\python.exe -m datatrace investigate pmpm.json
+```
+
+## Load incidents from a DuckDB warehouse
+
+Real incidents live in a warehouse, not in JSON files. `datatrace warehouse` reads the two snapshots from a DuckDB file (one fact table and one member table per snapshot, tables or views you name), maps your column names, dollar decimals and status codes onto the domain, and writes an incident bundle. The agent still never touches the warehouse: the connector opens the file **read-only, with file, network and extension access disabled and settings locked**, refuses tables over 120,000 rows, accepts only plain identifiers, rejects amounts with fractions of a cent, and sends every row through the same validation as JSON input.
+
+```powershell
+pip install -e ".[warehouse]"
+# Write a demo CMS claims warehouse (DATE columns, DECIMAL dollars, P/A/D status codes) and its spec, then load it:
+.\.venv\Scripts\python.exe -m datatrace warehouse spec.json --db claims.duckdb --write-demo --output incident.json
+.\.venv\Scripts\python.exe -m datatrace investigate incident.json
+```
+
+The spec names the tables per snapshot (`"previous": {"facts": "snap_2009_12_18.claims", "members": "snap_2009_12_18.eligibility"}`), maps columns (`"paid_cents": "clm_pmt_amt"`) and codes (`"status": {"P": "paid"}`), and carries the metric contract and both SQL versions. The demo warehouse reproduces the flagship incident exactly: $4,561,400 real, $649,400 error, 69 claims.
+
 ## Meta models: four roles
 
 | Model | Role |
 | --- | --- |
-| **`muse-spark-1.3`** | **Investigator agent.** A client-side tool loop: it plans hypotheses, writes diagnostic SQL, issues tool calls in parallel, revises from results, calls `request_clarification` when the contract is incomplete, and proposes a correction it must test with `verify_correction`. Reasoning summaries stream into the UI. |
+| **`muse-spark-1.3`** | **Investigator agent.** A client-side tool loop: it plans hypotheses, writes diagnostic SQL, issues tool calls in parallel, revises from results, calls `request_clarification` when the contract is incomplete, and proposes a correction it must test with `verify_correction` (and, for a rate, a denominator it must test with `verify_denominator`). Reasoning summaries stream into the UI. |
 | **`muse-wonder-1.0`** | **Independent reviewer.** Sees only the executed evidence, contract checks and the diagnosis, never the agent's reasoning. Returns a structured verdict (JSON schema). A challenge sends the agent back for one evidence-backed revision. Also drafts the two-sentence stakeholder brief. |
 | `muse-spark-1.3` (vision) | **Intake.** Reads a dashboard screenshot and message and drafts the metric contract for the analyst to confirm. |
 | **`muse-voice-transcribe-1.0`** | **Voice intake.** Turns a stakeholder's voice note into the incident description (`/v1/asr/transcribe`). |
@@ -162,7 +188,7 @@ Reproduce the benchmark (billable; the full 360-run benchmark cost about $23 at 
 .\.venv\Scripts\python.exe scripts\summarize_benchmark.py
 ```
 
-Splits: `development`, `stress`, `realistic`, `scale`, `healthcare`. Tests: `python -m pytest -q`.
+Splits: `development`, `stress`, `realistic`, `scale`, `healthcare`, `rates`. Tests: `python -m pytest -q`.
 
 ## Run the agent on open-weight Meta models
 
@@ -193,10 +219,11 @@ Up to 120,000 rows per table and 32 MiB per file. Metric SQL must return `order_
 - **Key handling.** Read from `.env` (git-ignored) or Streamlit secrets; sent only to `https://api.meta.ai/v1`, with redirects refused; never displayed, logged or exported.
 - **Leak guards.** `tests/test_secrets.py` fails CI if any tracked file assigns `MODEL_API_KEY`. `scripts/pre-commit` blocks commits containing the real key.
 - **Data minimisation.** The agent never receives raw rows, only the schema, row counts and its own capped query results.
-- **Sandboxed SQL.** In-memory SQLite with an authorizer allowlist (SELECT on two tables and a short list of pure, deterministic functions), `query_only`, VM-step and time limits, capped rows, and no writes, attachments, PRAGMAs or recursive CTEs.
+- **Sandboxed SQL.** In-memory SQLite with an authorizer allowlist (SELECT on the incident's own tables and a short list of pure, deterministic functions), `query_only`, VM-step and time limits, capped rows, and no writes, attachments, PRAGMAs or recursive CTEs.
 - **Bounded agent.** 16 tool calls, 250k tokens per investigation, one review-driven revision; fabricated evidence IDs are rejected. When the tool budget runs out, the agent gets one tool-free turn to conclude from the evidence it has, instead of failing.
 - **Escaped output.** Model-written text is HTML-escaped before rendering, and a failed live run falls back to the deterministic checks instead of a blank page.
 - **Public demo mode** (`DATATRACE_PUBLIC_DEMO=1`): per-visitor and per-day live-run caps, and live mode limited to bundled synthetic data. See [docs/DEPLOY.md](docs/DEPLOY.md).
+- **Read-only warehouse import.** DuckDB is opened read-only with external access, extension install/load and configuration changes disabled; a view that reads files is refused.
 - Contributor-mode models (which permit training on inputs) are deliberately not used.
 
 ## Stress test (Nov 3)
@@ -225,12 +252,22 @@ All code in this repository was written between **Oct 28 and Nov 3, 2026**, insi
 | Nov 3 | Stress test and hardening: HTML escaping, graceful tool budget, live-failure fallback, query cache, wider safe SQL functions, precise CSV errors, pinned Streamlit |
 | Nov 3 | Agent v2: no raw rows to the model, parallel tool calls, reasoning summaries, `request_clarification` with pause and resume, `muse-wonder-1.0` reviewer with revision, voice and screenshot intake, realistic 4k-order and 42k-order incidents, live timeline UI, recorded runs, benchmark, safety guards |
 
+### After the hackathon (`v2` branch)
+
+The submitted version is tagged `hackathon-submission` (commit `10fbfbd`). Work after the Nov 4 deadline lives on the `v2` branch:
+
+| Date (PT) | Work |
+| --- | --- |
+| Nov 4 | DuckDB warehouse connector; rate metrics (PMPM, admissions per 1,000) with a verified member-month denominator, agent and reviewer support, three CMS rate incidents recorded live |
+
 ## Project layout
 
 ```
 src/datatrace/meta.py         Meta transport, agent loop, reviewer
 src/datatrace/intake.py       voice and screenshot intake
-src/datatrace/investigator.py replay, evidence, per-order verifier
+src/datatrace/investigator.py replay, evidence, per-order and member-month verifiers
+src/datatrace/rates.py        PMPM and per-1,000 rates, exact numerator/denominator split
+src/datatrace/warehouse.py    read-only DuckDB snapshot import
 src/datatrace/runner.py       sandboxed SQLite
 src/datatrace/scenarios.py    realistic Black Friday incidents
 src/datatrace/ui.py           Streamlit app
@@ -241,12 +278,12 @@ results/                      benchmark summary
 
 ## What's next
 
-- **Warehouse connectors.** Run the same bounded, read-only tools against DuckDB, Snowflake or BigQuery views instead of in-memory snapshots.
-- **More metric shapes.** Per-member-per-month rates, utilisation per 1,000, and ratios, with the verifier checking numerator and denominator multisets.
+- **More warehouses.** The DuckDB connector's pattern (read-only, named views, column mapping) for Snowflake and BigQuery.
+- **More metric shapes.** Ratios and averages beyond PMPM and per 1,000, and rates broken out by plan or segment.
 - **Open-weight benchmark.** The adapter is ready; with partner credits, run the benchmark on Muse Spark Open or Muse Glimmer for teams whose data can't leave their infrastructure.
 - **Alerts in, briefs out.** Start investigations from a dashboard alert or Slack message and post the verified brief back.
 - **Learning from verified traces.** Every investigation produces a checked trace (hypothesis, query, evidence, verdict), which is training data for a smaller specialised investigator.
 
 ## Limits
 
-Synthetic data only: generated retail incidents, and CMS DE-SynPUF synthetic claims with simulated lag, reversals and defects. One SQL dialect (SQLite). Two domain profiles, both with a fact table and one dimension. Evidence references and independent checks do not verify every sentence a model writes; the reviewer flags unsupported details, and the UI shows open concerns. No multi-user authentication. MIT licensed. DE-SynPUF is a U.S. Government work in the public domain.
+Synthetic data only: generated retail incidents, and CMS DE-SynPUF synthetic claims with simulated lag, reversals and defects. One SQL dialect (SQLite). Two domain profiles, each with a fact table, one dimension and an optional member-month table for rates. The rate population counts members with full-year Part A coverage, because the 2009 summary gives coverage month counts, not which months. Evidence references and independent checks do not verify every sentence a model writes; the reviewer flags unsupported details, and the UI shows open concerns. No multi-user authentication. MIT licensed. DE-SynPUF is a U.S. Government work in the public domain.

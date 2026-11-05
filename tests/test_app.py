@@ -142,3 +142,24 @@ def test_healthcare_clarification_offers_reversal_answers():
     _button(app, "Include reversals (net paid)").click().run()
     assert not app.exception
     assert "Resumed after the analyst" in _markdown(app)
+
+
+PMPM = "★ Medicare PMPM: did cost per member really fall? · CMS DE-SynPUF"
+
+
+def test_pmpm_incident_shows_rate_split_and_verified_denominator():
+    app = _app(scenario=PMPM)
+    _button(app, INVESTIGATE).click().run()
+    assert not app.exception
+    metrics = {metric.label: metric.value for metric in app.metric}
+    assert metrics["Reported rate change"] == "-$34.10 PMPM" and metrics["Real rate change"] == "+$46.64 PMPM"
+    assert metrics["Verified correct rate"] == "$177.95 PMPM"
+    assert any("Member months that differ (8,032)" in element.value for element in app.subheader)
+    assert any("Every member month in the window appears exactly once" in element.value for element in app.success)
+
+
+def test_pmpm_recorded_live_run_replays():
+    app = _app(mode="Recorded live run", scenario=PMPM)
+    _button(app, INVESTIGATE).click().run()
+    assert not app.exception
+    assert "muse-spark-1.3" in _markdown(app) and "Real growth + reporting defect" in _markdown(app)

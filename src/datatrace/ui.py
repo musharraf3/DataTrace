@@ -24,7 +24,8 @@ from .openweight import make_agent_client
 from .reporting import list_price_usd, markdown_report
 from .runner import QueryRejected
 from .domains import get as get_domain
-from .healthcare import make_claims_case
+from .healthcare import make_claims_case, make_rate_case
+from .rates import delta as rate_delta, label as rate_label
 from .scenarios import make_realistic_case
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -40,6 +41,9 @@ SCENARIO_CHOICES = [
     ("Claims: pending counted as paid · CMS DE-SynPUF", ("synpuf", "pending_counted")),
     ("Claims: genuine run-out · CMS DE-SynPUF", ("synpuf", "runout_growth")),
     ("Claims: reversal treatment undefined · CMS DE-SynPUF", ("synpuf", "reversal_policy")),
+    ("★ Medicare PMPM: did cost per member really fall? · CMS DE-SynPUF", ("rate", "pmpm_coverage_lines")),
+    ("Admissions per 1,000 after an enrollment rebuild · CMS DE-SynPUF", ("rate", "utilization_coverage_lines")),
+    ("PMPM: genuine run-out · CMS DE-SynPUF", ("rate", "pmpm_runout_growth")),
     ("★ Retail: Black Friday + CRM migration · 4,122 orders", ("realistic", "crm_migration")),
     ("Month-end cutoff edit · 4,122 orders", ("realistic", "cutoff_change")),
     ("Pending orders counted as paid · 4,122 orders", ("realistic", "status_filter")),
@@ -137,6 +141,10 @@ def _example_zip(case):
         for snapshot in ["previous", "current"]:
             for table in ["orders", "customers"]:
                 archive.writestr(f"{snapshot}_{table}.csv", snapshot_csv(case, snapshot, table))
+            if "member_months" in case.snapshots[snapshot]:
+                dom = get_domain(case.domain)
+                lines = [",".join(dom.enroll_columns)] + [",".join(map(str, row)) for row in case.snapshots[snapshot]["member_months"]]
+                archive.writestr(f"{snapshot}_{dom.enroll}.csv", "\n".join(lines) + "\n")
     return output.getvalue()
 
 
@@ -144,6 +152,8 @@ def _example_zip(case):
 def _cached_case(kind, name):
     if kind == "synpuf":
         return make_claims_case(name)
+    if kind == "rate":
+        return make_rate_case(name)
     return make_realistic_case(name) if kind == "realistic" else make_case(name, 1)
 
 
@@ -158,6 +168,10 @@ def _inputs(case, source):
             st.info("Upload an incident bundle, or download a template from the sidebar.")
             return None
         case = load_bundle(uploaded.getvalue())
+    elif source == "Four CSV snapshots" and "rate" in case.contract:
+        st.info("Rate incidents add a member-month table, so load them from the bundled example or an incident JSON "
+                "(the sidebar download includes one).")
+        return None
     elif source == "Four CSV snapshots":
         dom = get_domain(case.domain)
         st.caption(f"Use the template CSV headers ({', '.join(dom.fact_columns)} and {', '.join(dom.dim_columns)}). "
@@ -195,8 +209,18 @@ def _inputs(case, source):
         current_sql = after.text_area("Current SQL", case.current_sql, height=170, key=f"current-{seed}", max_chars=10000)
         contract = {**case.contract, "start": start.isoformat(), "end_exclusive": end.isoformat(),
                     "refund_policy": None if policy == "unknown" else policy, "status": status}
+        denominators = {}
+        if "rate" in case.contract:
+            st.caption(f"Rate metric ({rate_label(0, case.contract['rate']['kind']).split(' ', 1)[1]}): the denominator "
+                       f"SQL returns one {dom.member}, {dom.month} row per member month from {dom.enroll}.")
+            before, after = st.columns(2)
+            denominators = {
+                "previous_denominator_sql": before.text_area("Previous denominator SQL", case.previous_denominator_sql,
+                                                             height=110, key=f"prior-den-{seed}", max_chars=10000),
+                "current_denominator_sql": after.text_area("Current denominator SQL", case.current_denominator_sql,
+                                                           height=110, key=f"current-den-{seed}", max_chars=10000)}
         case = validate_incident(replace(case, description=description, contract=contract,
-                                         previous_sql=previous_sql, current_sql=current_sql))
+                                         previous_sql=previous_sql, current_sql=current_sql, **denominators))
     with st.expander("Inspect input snapshots"):
         for snapshot in ["previous", "current"]:
             left, right = st.columns(2)
@@ -375,12 +399,72 @@ def _revenue_bridge(previous_cents, current_cents, reconciliation, money_label="
     st.altair_chart((bars + labels).properties(height=260), width="stretch")
 
 
+def _rate_bridge(rate):
+    kind = rate["kind"]
+    steps = [("Prior reported", 0, rate["previous_reported"], "Reported rate")]
+    level = rate["previous_reported"]
+    if rate["previous_reported"] != rate["previous_expected"]:
+        steps.append(("Prior correction", level, rate["previous_expected"], "Reporting error"))
+        level = rate["previous_expected"]
+    for name, key, kind_label in [("Real: claims", "real_change_from_numerator", "Genuine movement"),
+                                  ("Real: enrollment", "real_change_from_enrollment", "Genuine movement"),
+                                  ("Error: numerator", "error_from_numerator", "Reporting error"),
+                                  ("Error: denominator", "error_from_denominator", "Reporting error")]:
+        if rate[key]:
+            steps.append((name, level, round(level + rate[key], 2), kind_label))
+            level = round(level + rate[key], 2)
+    steps.append(("Current reported", 0, rate["current_reported"], "Reported rate"))
+    frame = pd.DataFrame(steps, columns=["Step", "Start", "End", "Type"])
+    frame["Amount"] = frame["End"] - frame["Start"]
+    fmt = (lambda v: f"{'-' if v < 0 else ''}${abs(v):,.2f}") if kind == "pmpm" else (lambda v: f"{v:,.1f}")
+    frame["Label"] = frame["Amount"].map(fmt)
+    axis = alt.X("Step:N", sort=frame["Step"].tolist(), title=None, axis=alt.Axis(labelAngle=0, labelLimit=140))
+    base = alt.Chart(frame).encode(x=axis)
+    bars = base.mark_bar(size=58, cornerRadius=3).encode(
+        y=alt.Y("Start:Q", title="USD per member per month" if kind == "pmpm" else "Claims per 1,000 member-years",
+                axis=alt.Axis(format="$,.0f" if kind == "pmpm" else ",.0f")), y2="End:Q",
+        color=alt.Color("Type:N", scale=alt.Scale(domain=["Reported rate", "Genuine movement", "Reporting error"],
+                                                  range=["#3656ae", "#0f8179", "#c05e29"]),
+                        legend=alt.Legend(title=None, orient="bottom")),
+        tooltip=["Step:N", alt.Tooltip("Amount:Q", format=",.2f")])
+    labels = base.mark_text(dy=-10, fontWeight="bold", color="#17264a").encode(y="End:Q", text="Label:N")
+    st.altair_chart((bars + labels).properties(height=260), width="stretch")
+
+
+def _rate_cards(report):
+    rate = report["rate_reconciliation"]
+    kind = rate["kind"]
+    check = report.get("denominator_validation") or {}
+    a, b, c, d = st.columns(4)
+    a.metric("Reported rate change", rate_delta(rate["reported_change"], kind))
+    b.metric("Real rate change", rate_delta(rate["real_change"], kind))
+    c.metric("Rate reporting error", rate_delta(rate["reporting_error"], kind))
+    if report.get("denominator_correction_sql") and check.get("verified"):
+        d.metric("Verified correct rate", rate_label(rate["current_expected"], kind))
+    elif not rate["reporting_error"] and not rate["affected_member_month_count"]:
+        d.metric("Reported rate", "Correct ✓")
+    else:
+        d.metric("Correct rate", rate_label(rate["current_expected"], kind), help="From the contract; no verified fix yet.")
+    months = rate["reported_member_months"]["current"], rate["expected_member_months"]["current"]
+    st.caption(_md(f"Error split: {rate_delta(rate['error_from_numerator'], kind)} from the numerator, "
+               f"{rate_delta(rate['error_from_denominator'], kind)} from the denominator. Member months on the current "
+               f"snapshot: reported {months[0]:,}, correct {months[1]:,} ({rate['affected_member_month_count']:,} differ, "
+               f"{rate['denominator_evidence_id']}). The numerator, in dollars, is below."))
+
+
 def _verdict_card(report):
     label, color = LABELS.get(report["classification"], (report["classification"], "#475467"))
     reconciliation = report.get("reconciliation")
     replay = report["replay"]
     headline = ""
-    if reconciliation and replay:
+    rate = report.get("rate_reconciliation")
+    if rate:
+        kind = rate["kind"]
+        headline = (f"Reported rate moved <b>{rate_delta(rate['reported_change'], kind)}</b> to "
+                    f"{rate_label(rate['current_reported'], kind)}. The real change is <b>{rate_delta(rate['real_change'], kind)}</b>"
+                    f" (correct: {rate_label(rate['current_expected'], kind)}); <b>{rate_delta(rate['reporting_error'], kind)}</b> "
+                    f"is a reporting error.")
+    elif reconciliation and replay:
         moved = replay[3]["revenue_cents"] - replay[0]["revenue_cents"]
         headline = (f"Reported {get_domain(report.get('domain')).metric_noun} moved <b>{_usd(moved)}</b>: <b>{_usd(reconciliation['underlying_change_cents'])}</b> is real, "
                     f"<b>{_usd(reconciliation['current_error_cents'])}</b> is a reporting error.")
@@ -420,18 +504,22 @@ def _result(case, report, context_key):
                 "repair your SQL while keeping its intent, and cannot ask you about a missing definition. Switch to the "
                 "**Meta agent** for the investigation; this verifier is the referee that checks the agent's fix.")
     validation = report.get("validation") or {}
+    prefix = ""
+    if report.get("rate_reconciliation"):
+        _rate_cards(report)
+        prefix = "Numerator: "
     a, b, c, d = st.columns(4)
-    a.metric("Reported change", _signed_usd(current_cents - previous_cents))
+    a.metric(prefix + "reported change" if prefix else "Reported change", _signed_usd(current_cents - previous_cents))
     if reconciliation is None:
         b.metric("Real change", "Needs definition")
         c.metric("Reporting error", "Needs definition")
     else:
-        b.metric("Real change", _signed_usd(reconciliation['underlying_change_cents']))
-        c.metric("Reporting error", _signed_usd(reconciliation['current_error_cents']))
+        b.metric(prefix + "real change" if prefix else "Real change", _signed_usd(reconciliation['underlying_change_cents']))
+        c.metric(prefix + "reporting error" if prefix else "Reporting error", _signed_usd(reconciliation['current_error_cents']))
     if validation.get("verified") and report.get("correction_sql"):
         d.metric(f"Verified corrected {dom.metric_noun}", f"${validation['actual_revenue_cents'] / 100:,.0f}")
     elif reconciliation and reconciliation["current_error_cents"] == 0 and not reconciliation["affected_order_count"]:
-        d.metric("Reported number", "Correct ✓")
+        d.metric(prefix + "reported dollars" if prefix else "Reported number", "Correct ✓")
     else:
         d.metric(f"Corrected {dom.metric_noun}", "Not verified")
     review = report.get("review") or {}
@@ -448,6 +536,9 @@ def _result(case, report, context_key):
         if reconciliation is None:
             st.info("Refund treatment is undefined, so no number can be called right or wrong yet.")
         else:
+            if report.get("rate_reconciliation"):
+                _rate_bridge(report["rate_reconciliation"])
+                st.caption("Rate bridge: the real change and the reporting error, each split into numerator and denominator effects.")
             _revenue_bridge(previous_cents, current_cents, reconciliation, dom.money_label)
             st.caption(f"Real change applies the same {dom.item}-level contract to both snapshots. Reporting error compares the query with that contract.")
         if report.get("root_cause"):
@@ -460,6 +551,12 @@ def _result(case, report, context_key):
         if report.get("correction_sql"):
             st.markdown("**Verified correction**" if validation.get("verified") else "**Candidate correction**")
             st.code(report["correction_sql"], language="sql")
+        check = report.get("denominator_validation")
+        if check:
+            (st.success if check.get("verified") else st.warning)("Denominator: " + check.get("reason", ""))
+        if report.get("denominator_correction_sql"):
+            st.markdown("**Verified denominator**" if (check or {}).get("verified") else "**Candidate denominator**")
+            st.code(report["denominator_correction_sql"], language="sql")
         st.caption(report["diagnosis_source"] + " · " + report["limitations"])
     with tabs[1]:
         if report.get("events"):
@@ -487,6 +584,12 @@ def _result(case, report, context_key):
                 st.caption("Showing the 100 largest differences by absolute value.")
         else:
             st.info("No order differs from the metric contract." if reconciliation else "Define refund treatment first.")
+        rate = report.get("rate_reconciliation")
+        if rate and rate["affected_member_months"]:
+            st.subheader(f"Member months that differ ({rate['affected_member_month_count']:,})")
+            st.caption(f"Denominator rows from {rate['denominator_evidence_id']} compared with one row per member month.")
+            st.dataframe(pd.DataFrame(rate["affected_member_months"]).rename(columns={
+                "reported_rows": "Reported rows", "expected_rows": "Expected rows"}), width="stretch", hide_index=True)
     with tabs[3]:
         st.subheader("Four-way SQL and snapshot replay")
         st.dataframe(replay, width="stretch", hide_index=True)
@@ -508,6 +611,18 @@ def _result(case, report, context_key):
                 session.close()
             (st.success if checked["verified"] else st.warning)(checked["reason"])
             st.json(checked, expanded=False)
+        if "rate" in case.contract:
+            denominator = st.text_area("Candidate denominator SQL to verify",
+                                       report.get("denominator_correction_sql") or case.current_denominator_sql,
+                                       height=110, key=f"candidate-den-{context_key}", max_chars=10000)
+            if st.button("Verify candidate denominator"):
+                session = Investigation(case)
+                try:
+                    checked = session.verify_denominator(denominator)
+                finally:
+                    session.close()
+                (st.success if checked["verified"] else st.warning)(checked["reason"])
+                st.json(checked, expanded=False)
     with tabs[5]:
         public = {k: v for k, v in report.items() if k != "resume_state"}
         st.json({"generated_at": report["generated_at"], "input_sha256": report["input_sha256"],
