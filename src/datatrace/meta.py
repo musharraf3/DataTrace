@@ -17,6 +17,7 @@ import uuid
 from .investigator import Investigation
 from .inputs import validate_incident
 from .reporting import enrich_report
+from .rates import delta
 from .runner import QueryRejected
 
 OFFICIAL_BASE_URL = "https://api.meta.ai/v1"
@@ -30,7 +31,9 @@ Do not assume every increase is a bug, and do not assume the old total is correc
 
 If the current SQL violates the contract, write corrected SQL and check it with verify_correction before finishing. Metric SQL must return exactly the key and value columns named in sql_dialect (integer cents, one row per eligible item), using the table names, column names and value vocabulary in the schema. Dialect is SQLite. Query output is capped; truncated output cannot prove complete coverage.
 
-Finish with only JSON: {"classification": one of calculation_defect | genuine_change | mixed_change | insufficient_evidence, "summary": plain-language explanation with dollar amounts, "root_cause": one sentence or null, "evidence_ids": nonempty list of executed evidence IDs you relied on, "correction_sql": string or null}. mixed_change means a calculation defect AND genuine data movement. Do not claim independent verification yourself. Never disclose credentials or request external services."""
+If the metric is a rate (metric_contract.rate, for example cost per member per month), either the numerator or the denominator can be wrong, and a falling rate is not good news until both are checked. The denominator replay (member months per SQL version x snapshot) and the rate reconciliation are already executed. If the denominator violates the contract, write denominator SQL that returns one row per distinct (member_id, month) in the window and check it with verify_denominator.
+
+Finish with only JSON: {"classification": one of calculation_defect | genuine_change | mixed_change | insufficient_evidence, "summary": plain-language explanation with dollar amounts (for a rate, the reported, correct and real-change rates), "root_cause": one sentence or null, "evidence_ids": nonempty list of executed evidence IDs you relied on, "correction_sql": string or null, "denominator_correction_sql": string or null (rate metrics only)}. mixed_change means a calculation defect AND genuine data movement. Do not claim independent verification yourself. Never disclose credentials or request external services."""
 
 FINAL_TURN_NOTE = (" The tool budget is exhausted and no tools are available now. Return the final JSON "
                    "immediately, citing only evidence IDs that were already executed.")
@@ -38,9 +41,9 @@ FINAL_TURN_NOTE = (" The tool budget is exhausted and no tools are available now
 BASELINE_NOTE = (" No execution tools are available in this mode, and you receive raw snapshot rows instead. "
                  "Do not invent executed evidence IDs: return evidence_ids as []. root_cause may be null.")
 
-REVIEWER = """You are an independent reviewer for a data investigation. Another model investigated why a SQL metric changed. You did not run the investigation. Using ONLY the executed evidence, the metric contract, the four-way replay, the independent contract reconciliation, and the repair verification below, check the diagnosis.
+REVIEWER = """You are an independent reviewer for a data investigation. Another model investigated why a SQL metric changed. You did not run the investigation. Using ONLY the executed evidence, the metric contract, the four-way replay, the independent contract reconciliation, and the repair verification below, check the diagnosis. For a rate metric, also check the denominator replay, the rate reconciliation (real change and reporting error, each split into numerator and denominator effects) and the denominator verification.
 
-First list concerns. Mark a concern blocking when the diagnosis must not be reported as written: a cause or claim with no supporting evidence, a classification that ignores a defect or genuine growth, a material dollar amount that conflicts with the evidence or reconciliation, or a correction whose verification did not pass. Minor wording, rounding under $5, or a supported claim whose exact evidence row is not cited are not blocking. Then give the verdict: challenged if any concern is blocking, otherwise supported. Be concise and specific. Finally write a two-sentence brief a finance or claims leader can act on, with dollar amounts taken from the reconciliation."""
+First list concerns. Mark a concern blocking when the diagnosis must not be reported as written: a cause or claim with no supporting evidence, a classification that ignores a defect or genuine growth, a material dollar amount that conflicts with the evidence or reconciliation, or a correction whose verification did not pass. Minor wording, rounding under $5, or a supported claim whose exact evidence row is not cited are not blocking. Then give the verdict: challenged if any concern is blocking, otherwise supported. Be concise and specific. Finally write a two-sentence brief a finance or claims leader can act on, with dollar amounts (or rates) taken from the reconciliation."""
 
 # Concerns come first so the reviewer reasons before it commits; the verdict is then derived in code.
 REVIEW_SCHEMA = {"type": "object", "additionalProperties": False,
@@ -65,6 +68,12 @@ TOOLS = [
          "required": ["snapshot", "sql", "purpose"], "additionalProperties": False}},
     {"type": "function", "name": "verify_correction",
      "description": "Check candidate metric SQL against an independent per-order metric-contract reference on current data.",
+     "parameters": {"type": "object", "properties": {"sql": {"type": "string"},
+                                                    "purpose": {"type": "string"}},
+                    "required": ["sql", "purpose"], "additionalProperties": False}},
+    {"type": "function", "name": "verify_denominator",
+     "description": "Rate metrics only: check candidate denominator SQL against the independent member-month contract "
+                    "(each member_id, month in the window exactly once) on current data.",
      "parameters": {"type": "object", "properties": {"sql": {"type": "string"},
                                                     "purpose": {"type": "string"}},
                     "required": ["sql", "purpose"], "additionalProperties": False}},
@@ -220,6 +229,10 @@ def table_profile(snapshots):
                                     "order_date_min": min(dates) if dates else None,
                                     "order_date_max": max(dates) if dates else None},
                          "customers": {"row_count": len(data["customers"])}}
+        if "member_months" in data:
+            months = [row[1] for row in data["member_months"]]
+            profile[name]["member_months"] = {"row_count": len(months), "month_min": min(months, default=None),
+                                              "month_max": max(months, default=None)}
     return profile
 
 
@@ -259,6 +272,10 @@ def validate_final(response, known=None):
     sql = final.get("correction_sql")
     if sql is not None and (not isinstance(sql, str) or not 1 <= len(sql.strip()) <= 10000):
         raise MetaAPIError("Invalid correction SQL.")
+    denominator = final.get("denominator_correction_sql")
+    if denominator is not None and (not isinstance(denominator, str) or not 1 <= len(denominator.strip()) <= 10000):
+        raise MetaAPIError("Invalid denominator correction SQL.")
+    final["denominator_correction_sql"] = denominator
     root = final.get("root_cause")
     final["root_cause"] = root[:600] if isinstance(root, str) and root.strip() else None
     return final
@@ -279,14 +296,33 @@ def _usage(response):
 
 # ---------------------------------------------------------------- reviewer
 
-def review_diagnosis(client, incident, final, session, replay, reconciliation, validation):
+def _rate_packet(rate):
+    """The rate facts shared with the agent and the reviewer: replay, reconciliation, denominator check."""
+    if not rate:
+        return {}
+    reconciliation = rate.get("reconciliation")
+    packet = {"denominator_replay": rate.get("replay"),
+              "rate_reconciliation": None if reconciliation is None else {
+                  **{k: v for k, v in reconciliation.items() if k != "affected_member_months"},
+                  "affected_member_months_sample": reconciliation["affected_member_months"][:8]}}
+    if "validation" in rate:
+        check = rate["validation"]
+        packet["denominator_verification"] = None if check is None else {
+            key: check.get(key) for key in ["verified", "reason", "expected_member_months", "actual_member_months",
+                                            "missing_row_count", "unexpected_row_count"]}
+    return packet
+
+
+def review_diagnosis(client, incident, final, session, replay, reconciliation, validation, rate=None):
     """Independent second model. It sees evidence and checks, never the agent's private reasoning."""
     totals = None if reconciliation is None else {k: v for k, v in reconciliation.items() if k != "affected_orders"}
     cited = set(final["evidence_ids"])
     packet = {"metric_contract": incident.contract, "previous_sql": incident.previous_sql,
               "current_sql": incident.current_sql, "four_way_replay": replay,
               "independent_contract_reconciliation": totals,
-              "diagnosis": {key: final.get(key) for key in ["classification", "summary", "root_cause", "correction_sql"]},
+              "diagnosis": {key: final.get(key) for key in ["classification", "summary", "root_cause", "correction_sql",
+                                                            "denominator_correction_sql"]},
+              **_rate_packet(rate),
               "repair_verification": None if validation is None else {
                   key: validation.get(key) for key in ["verified", "reason", "expected_revenue_cents",
                                                        "actual_revenue_cents", "missing_row_count", "unexpected_row_count"]},
@@ -315,19 +351,42 @@ def review_diagnosis(client, incident, final, session, replay, reconciliation, v
             and reconciliation.get("current_error_cents")):
         parsed.insert(0, (f"Classified as genuine change, but the contract reconciliation shows a "
                           f"${reconciliation['current_error_cents'] / 100:,.2f} reporting error.", True))
+    if rate:
+        check, rate_totals = rate.get("validation"), rate.get("reconciliation") or {}
+        if final.get("denominator_correction_sql") and check is not None and not check.get("verified"):
+            parsed.insert(0, ("The proposed denominator failed the independent member-month verification.", True))
+        if final.get("classification") == "genuine_change" and rate_totals.get("reporting_error"):
+            parsed.insert(0, (f"Classified as genuine change, but the rate reconciliation shows a reporting error of "
+                              f"{delta(rate_totals['reporting_error'], rate_totals['kind'])}.", True))
+        if (rate_totals.get("error_from_denominator") and not final.get("denominator_correction_sql")
+                and final.get("classification") != "insufficient_evidence"):
+            parsed.insert(0, ("The rate reconciliation shows a denominator error, but no verified denominator "
+                              "correction was proposed.", True))
     blocking = any(flag for _, flag in parsed)
     verdict = "challenged" if blocking else "supported"
     concerns = [("Blocking: " if flag else "Minor: ") + issue for issue, flag in parsed if issue][:6]
     brief = str(review.get("stakeholder_brief") or "").strip()[:1200]
     if not brief and reconciliation is not None:
-        brief = _fallback_brief(incident, reconciliation, validation, final)
+        brief = _fallback_brief(incident, reconciliation, validation, final, rate)
     return {"model": getattr(client, "review_model", "test-reviewer"), "verdict": verdict,
             "concerns": concerns, "stakeholder_brief": brief, "usage": _usage(response)}
 
 
-def _fallback_brief(incident, reconciliation, validation, final):
+def _fallback_brief(incident, reconciliation, validation, final, rate=None):
     """A brief built only from verified numbers, used when the reviewer returns none."""
     from .domains import get
+    if rate and rate.get("reconciliation"):
+        from .rates import delta, label
+        r = rate["reconciliation"]
+        text = (f"{incident.contract.get('name', 'The rate')}: reported {label(r['current_reported'], r['kind'])}, "
+                f"correct {label(r['current_expected'], r['kind'])}; the real change is {delta(r['real_change'], r['kind'])} "
+                f"from {label(r['previous_expected'], r['kind'])}.")
+        if r["reporting_error"]:
+            check = rate.get("validation")
+            text += (f" The reporting error is {delta(r['reporting_error'], r['kind'])}"
+                     + (", and the corrected denominator is independently verified." if check and check.get("verified")
+                        else "; do not report the rate until the fix is verified."))
+        return text
     noun = get(getattr(incident, "domain", "revenue")).metric_noun
     real = reconciliation["underlying_change_cents"] / 100
     error = reconciliation["current_error_cents"] / 100
@@ -378,18 +437,23 @@ def investigate_meta(incident, *, client=None, max_tool_calls=16, on_event=None,
         replay = session.replay()
         reconciliation = session.reconcile(replay)
         totals = None if reconciliation is None else {k: v for k, v in reconciliation.items() if k != "affected_orders"}
+        rate = None
+        if session.is_rate:
+            denominator_replay = session.replay_denominator()
+            rate = {"replay": denominator_replay, "reconciliation": session.rate_reconcile(replay, denominator_replay)}
         if resume:
             emit("clarified", field="refund_policy", answer=answer)
             inputs = list(resume.get("pending_outputs", [])) + [{
                 "type": "function_call_output", "call_id": resume["call_id"], "output": json.dumps({
                     "analyst_answer": answer, "updated_metric_contract": incident.contract,
-                    "replay_rerun": replay, "contract_reconciliation": totals,
+                    "replay_rerun": replay, "contract_reconciliation": totals, **_rate_packet(rate),
                     "note": "The contract is now complete. Continue the investigation."})}]
             previous_id = resume["previous_response_id"]
         else:
-            emit("start", model=getattr(client, "model", "test-client"), replay=replay, reconciliation=totals)
+            emit("start", model=getattr(client, "model", "test-client"), replay=replay, reconciliation=totals,
+                 **({"rate": _rate_packet(rate)} if rate else {}))
             inputs = json.dumps({**agent_context(incident), "initial_replay": replay,
-                                 "contract_reconciliation": totals,
+                                 "contract_reconciliation": totals, **_rate_packet(rate),
                                  "initial_evidence": [_compact(e) for e in session.evidence]})
             previous_id = None
         final_turn = False
@@ -415,9 +479,15 @@ def investigate_meta(incident, *, client=None, max_tool_calls=16, on_event=None,
                 if validation is not None:
                     emit("verified", verified=validation["verified"], reason=validation["reason"],
                          evidence_id=validation.get("evidence_id"))
+                if rate is not None:
+                    rate["validation"] = (session.verify_denominator(final["denominator_correction_sql"])
+                                          if final.get("denominator_correction_sql") else None)
+                    if rate["validation"] is not None:
+                        emit("verified", verified=rate["validation"]["verified"], reason=rate["validation"]["reason"],
+                             evidence_id=rate["validation"].get("evidence_id"), target="denominator")
                 if review and incident.contract["refund_policy"] is not None:
                     emit("review_start", model=getattr(client, "review_model", "reviewer"))
-                    verdict = review_diagnosis(client, incident, final, session, replay, reconciliation, validation)
+                    verdict = review_diagnosis(client, incident, final, session, replay, reconciliation, validation, rate)
                     for key in ["input_tokens", "output_tokens"]:
                         usage[key] += verdict["usage"][key]
                     usage["review_requests"] = usage.get("review_requests", 0) + 1
@@ -435,7 +505,7 @@ def investigate_meta(incident, *, client=None, max_tool_calls=16, on_event=None,
                             "instruction": "Address each concern with executed evidence, then return the final JSON again."})}]
                         continue
                 return _finish(incident, client, final, validation, session, replay, reconciliation,
-                               trace, usage, events, reviews, time.monotonic() - started + offset, bool(resume))
+                               trace, usage, events, reviews, time.monotonic() - started + offset, bool(resume), rate)
             if final_turn:
                 raise MetaAPIError("Tool-call budget reached and the model kept calling tools; no final diagnosis accepted.")
             outputs, seen_call_ids, paused = [], set(), None
@@ -470,6 +540,8 @@ def investigate_meta(incident, *, client=None, max_tool_calls=16, on_event=None,
                         result = session.query(args["snapshot"], args["sql"])
                     elif name == "verify_correction" and keys == {"sql"}:
                         result = session.verify(args["sql"])
+                    elif name == "verify_denominator" and keys == {"sql"}:
+                        result = session.verify_denominator(args["sql"])
                     elif name == "request_clarification" and keys == {"question", "field", "options"}:
                         if incident.contract.get("refund_policy") is not None or paused:
                             result = {"error": "That part of the metric contract is already defined: refund_policy="
@@ -516,7 +588,7 @@ def investigate_meta(incident, *, client=None, max_tool_calls=16, on_event=None,
 
 
 def _finish(incident, client, final, validation, session, replay, reconciliation, trace, usage, events,
-            reviews, elapsed, clarified):
+            reviews, elapsed, clarified, rate=None):
     model_classification, model_correction, model_summary = (
         final["classification"], final.get("correction_sql"), final["summary"])
     correction = model_correction
@@ -534,6 +606,21 @@ def _finish(incident, client, final, validation, session, replay, reconciliation
         validation = {"verified": False, "reason": "Clarify refund treatment before proposing a repair."}
     elif correction and validation and not validation["verified"]:
         issues.append("The proposed correction failed the independent per-order check.")
+    rate_fields = {}
+    if rate is not None:
+        denominator_fix = final.get("denominator_correction_sql") if incident.contract["refund_policy"] is not None else None
+        check = rate.get("validation") if denominator_fix else None
+        if denominator_fix and check and not check["verified"]:
+            issues.append("The proposed denominator failed the independent member-month check.")
+        if final["classification"] == "genuine_change" and incident.contract["refund_policy"] is not None:
+            if not session.verify_denominator(incident.current_denominator_sql)["verified"]:
+                issues.append("Model's genuine-change claim conflicts with the member-month contract check.")
+                final["classification"] = "insufficient_evidence"
+                final["summary"] = ("The model's conclusion conflicts with an independent denominator check. "
+                                    "Review the executed evidence; no change is approved.")
+        rate_fields = {"denominator_replay": rate["replay"], "rate_reconciliation": rate["reconciliation"],
+                       "model_denominator_correction_sql": final.get("denominator_correction_sql"),
+                       "denominator_correction_sql": denominator_fix, "denominator_validation": check}
     events.append({"type": "done", "t": round(elapsed, 2), "classification": final["classification"]})
     report = {"mode": "meta_live", "status": "complete", "model": getattr(client, "model", "test-client"),
               "model_classification": model_classification, "model_correction_sql": model_correction,
@@ -543,7 +630,7 @@ def _finish(incident, client, final, validation, session, replay, reconciliation
               "correction_sql": correction, "validation": validation, "replay": replay,
               "reconciliation": reconciliation, "evidence": session.evidence, "trace": trace,
               "usage": usage, "events": events, "review": reviews[-1] if reviews else None,
-              "review_history": reviews, "clarified": clarified, "elapsed_seconds": round(elapsed, 3),
+              "review_history": reviews, "clarified": clarified, "elapsed_seconds": round(elapsed, 3), **rate_fields,
               "limitations": "Model interpretation; execution evidence and independent repair checks do not verify every prose claim. Local prototype."}
     return enrich_report(report, incident)
 

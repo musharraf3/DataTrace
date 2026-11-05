@@ -32,6 +32,10 @@ class QueryRunner:
         self.connection.executemany(f"INSERT INTO {d.fact} VALUES (?, ?, ?, ?, ?, ?)",
                                     [d.translate_fact(row) for row in snapshot["orders"]])
         self.connection.executemany(f"INSERT INTO {d.dim} VALUES (?, ?)", snapshot["customers"])
+        if "member_months" in snapshot:  # Rate metrics: the member-month denominator table.
+            self.tables.add(d.enroll)
+            self.connection.execute(f"CREATE TABLE {d.enroll} ({d.member} INTEGER, {d.month} TEXT, {d.line} TEXT)")
+            self.connection.executemany(f"INSERT INTO {d.enroll} VALUES (?, ?, ?)", snapshot["member_months"])
         self.connection.commit()
         self.connection.execute("PRAGMA query_only=ON")
         self.connection.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, 100000)

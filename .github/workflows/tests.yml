@@ -19,6 +19,7 @@ jobs:
       - run: python -m datatrace.evaluate --mode offline
       - run: python -m datatrace.evaluate --mode offline --split stress --output artifacts/stress-evaluation.json
       - run: python -m datatrace.evaluate --mode offline --split realistic --output artifacts/realistic-evaluation.json
+      - run: python -m datatrace.evaluate --mode offline --split rates --output artifacts/rates-evaluation.json
       - run: python -m datatrace sample --output artifacts/incident.json
       - run: python -m datatrace investigate artifacts/incident.json --output-dir artifacts/cli-report
       - run: python -m datatrace warehouse artifacts/warehouse/spec.json --db artifacts/warehouse/claims.duckdb --write-demo --output artifacts/warehouse/incident.json

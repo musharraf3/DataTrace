@@ -13,6 +13,7 @@ MAX_BYTES = 32 * 1024 * 1024
 MAX_ROWS = 120000
 ORDER_COLUMNS = ["order_id", "customer_id", "order_date", "status", "kind", "revenue_cents"]
 CUSTOMER_COLUMNS = ["customer_id", "region"]
+MONTH_COLUMNS = ["customer_id", "month", "line"]   # optional rate denominator: member months
 
 
 class InputError(ValueError):
@@ -50,11 +51,18 @@ def validate_contract(contract):
         raise InputError("Supported metric unit is integer USD cents.")
     if not isinstance(result.get("name", "Revenue"), str) or len(result.get("name", "Revenue")) > 120:
         raise InputError("Metric name must be text of at most 120 characters.")
-    return {"name": result.get("name", "Revenue"), "grain": "one row per order_id",
-            "unit": "integer USD cents", "start": result["start"],
-            "end_exclusive": result["end_exclusive"], "status": result["status"],
-            "refund_policy": result.get("refund_policy"),
-            "customer_coverage": "all orders, including unmatched customers"}
+    output = {"name": result.get("name", "Revenue"), "grain": "one row per order_id",
+              "unit": "integer USD cents", "start": result["start"],
+              "end_exclusive": result["end_exclusive"], "status": result["status"],
+              "refund_policy": result.get("refund_policy"),
+              "customer_coverage": "all orders, including unmatched customers"}
+    if result.get("rate") is not None:  # Only rate contracts carry the key, so older fingerprints are unchanged.
+        from .rates import RateError, validate_rate
+        try:
+            output["rate"] = validate_rate(result["rate"], output)
+        except RateError as exc:
+            raise InputError(str(exc)) from None
+    return output
 
 
 def _integer(value, label, *, positive=False):
@@ -83,6 +91,12 @@ def _validate_row(name, columns, row, seen):
             raise InputError(f"status must be paid, pending, or cancelled (got {str(status)[:20]!r}).")
         if not isinstance(kind, str) or kind not in {"sale", "refund"}:
             raise InputError(f"kind must be sale or refund (got {str(kind)[:20]!r}).")
+    elif name == "member_months":
+        _integer(row[0], "member_id", positive=True)
+        if not isinstance(row[1], str) or not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", row[1]):
+            raise InputError("month must be YYYY-MM.")
+        if not isinstance(row[2], str) or len(row[2]) > 40:
+            raise InputError("Coverage line must be text of at most 40 characters.")
     else:
         _integer(row[0], "customer_id", positive=True)
         if not isinstance(row[1], str) or len(row[1]) > 80:
@@ -91,10 +105,13 @@ def _validate_row(name, columns, row, seen):
 
 
 def validate_snapshot(snapshot):
-    if not isinstance(snapshot, dict) or set(snapshot) != {"orders", "customers"}:
-        raise InputError("Each snapshot must contain orders and customers tables.")
+    if not isinstance(snapshot, dict) or set(snapshot) - {"member_months"} != {"orders", "customers"}:
+        raise InputError("Each snapshot must contain orders and customers tables (and optionally member_months).")
     cleaned = {}
-    for name, columns in [("orders", ORDER_COLUMNS), ("customers", CUSTOMER_COLUMNS)]:
+    tables = [("orders", ORDER_COLUMNS), ("customers", CUSTOMER_COLUMNS)]
+    if "member_months" in snapshot:
+        tables.append(("member_months", MONTH_COLUMNS))
+    for name, columns in tables:
         rows = snapshot[name]
         if not isinstance(rows, list) or len(rows) > MAX_ROWS:
             raise InputError(f"{name} must be a list with at most {MAX_ROWS} rows.")
@@ -118,14 +135,26 @@ def validate_incident(incident):
     for sql in [incident.previous_sql, incident.current_sql]:
         if not isinstance(sql, str) or not 1 <= len(sql.strip()) <= 10000:
             raise InputError("Each metric SQL must contain 1–10,000 characters.")
+    denominators = [getattr(incident, "previous_denominator_sql", None), getattr(incident, "current_denominator_sql", None)]
+    if "rate" in incident.contract:
+        if any(not isinstance(sql, str) or not 1 <= len(sql.strip()) <= 10000 for sql in denominators):
+            raise InputError("A rate metric needs previous and current denominator SQL (1–10,000 characters each).")
+        if any("member_months" not in data for data in incident.snapshots.values()):
+            raise InputError("A rate metric needs a member_months table in both snapshots.")
+    elif any(sql is not None for sql in denominators):
+        raise InputError("Denominator SQL is only used with a rate metric contract.")
     return incident
 
 
 def bundle_dict(incident):
     """Export only public inputs, never evaluation labels or hidden family names."""
-    return {"format_version": 1, "domain": getattr(incident, "domain", "revenue"), "description": incident.description,
-            "contract": incident.contract, "snapshots": incident.snapshots,
-            "previous_sql": incident.previous_sql, "current_sql": incident.current_sql}
+    bundle = {"format_version": 1, "domain": getattr(incident, "domain", "revenue"), "description": incident.description,
+              "contract": incident.contract, "snapshots": incident.snapshots,
+              "previous_sql": incident.previous_sql, "current_sql": incident.current_sql}
+    if getattr(incident, "current_denominator_sql", None) is not None:
+        bundle["previous_denominator_sql"] = incident.previous_denominator_sql
+        bundle["current_denominator_sql"] = incident.current_denominator_sql
+    return bundle
 
 
 def fingerprint(incident):
@@ -147,7 +176,8 @@ def load_bundle(raw):
         if domain not in DOMAINS:
             raise InputError(f"Unknown domain {str(domain)[:30]!r}; use one of {', '.join(DOMAINS)}.")
         incident = Incident("custom", data["description"], data["contract"], data["snapshots"],
-                            data["previous_sql"], data["current_sql"], "unlabeled", "custom", domain)
+                            data["previous_sql"], data["current_sql"], "unlabeled", "custom", domain,
+                            data.get("previous_denominator_sql"), data.get("current_denominator_sql"))
         return validate_incident(incident)
     except (UnicodeError, ValueError, TypeError, KeyError, RecursionError) as exc:
         if isinstance(exc, InputError):

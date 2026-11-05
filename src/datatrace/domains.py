@@ -27,6 +27,9 @@ class Domain:
     reversal_noun: str = "refunds"
     metric_noun: str = "revenue"
     money_label: str = "Revenue (USD)"
+    enroll: str = "customer_months"   # optional rate denominator table: one row per member, month, line
+    month: str = "month"
+    line: str = "segment"
 
     @property
     def fact_columns(self):
@@ -35,6 +38,10 @@ class Domain:
     @property
     def dim_columns(self):
         return [self.member, self.attr]
+
+    @property
+    def enroll_columns(self):
+        return [self.member, self.month, self.line]
 
     def status(self, internal):
         return self.status_map.get(internal, internal)
@@ -65,7 +72,7 @@ HEALTHCARE = Domain(
     status_map={"paid": "paid", "pending": "pending", "cancelled": "denied"},
     kind_map={"sale": "claim", "refund": "reversal"},
     item="claim", items="claims", member_noun="member", reversal_noun="claim reversals",
-    metric_noun="paid claims", money_label="Paid claims (USD)")
+    metric_noun="paid claims", money_label="Paid claims (USD)", enroll="member_months", line="coverage")
 
 DOMAINS = {d.name: d for d in [REVENUE, HEALTHCARE]}
 

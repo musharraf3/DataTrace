@@ -46,7 +46,30 @@ def main():
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(out, separators=(",", ":")), encoding="utf-8")
     print(f"{len(claims)} claims, {len(benes)} beneficiaries -> {target} ({target.stat().st_size:,} bytes)")
+    enrollment()
+
+
+ENROLLMENT_STATE = "05"  # SSA state code 05 (California): the largest state in Sample 1.
+
+
+def enrollment():
+    """Every 2009 beneficiary in one state, for member-month (PMPM) denominators.
+
+    Per beneficiary: [DESYNPUF_ID, Part A months, Part D plan months, HMO months, death date or null].
+    Members without claims are included, which a member-month denominator needs."""
+    rows = [[row["DESYNPUF_ID"], int(row["BENE_HI_CVRAGE_TOT_MONS"] or 0), int(row["PLAN_CVRG_MOS_NUM"] or 0),
+             int(row["BENE_HMO_CVRAGE_TOT_MONS"] or 0),
+             row["BENE_DEATH_DT"] or None]
+            for row in _rows("de1_0_2009_beneficiary_summary_file_sample_1.zip")
+            if row["SP_STATE_CODE"] == ENROLLMENT_STATE]
+    out = {"source": "CMS DE-SynPUF Sample 1, 2009 Beneficiary Summary. Public domain, synthetic.",
+           "state": ENROLLMENT_STATE, "fields": ["bene", "part_a_months", "part_d_months", "hmo_months", "death"],
+           "beneficiaries": sorted(rows)}
+    target = ROOT / "examples" / "synpuf" / "enrollment_extract.json"
+    target.write_text(json.dumps(out, separators=(",", ":")), encoding="utf-8")
+    print(f"{len(rows)} state {ENROLLMENT_STATE} beneficiaries -> {target} ({target.stat().st_size:,} bytes)")
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    enrollment() if sys.argv[1:] == ["--enrollment"] else main()

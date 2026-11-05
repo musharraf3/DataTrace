@@ -92,6 +92,25 @@ def markdown_report(report):
             f"- Current reporting error: {reconciliation['current_error_cents'] / 100:+,.2f} USD",
             f"- Affected orders: {reconciliation['affected_order_count']} in {reconciliation['current_evidence_id']}",
         ])
+    rate = report.get("rate_reconciliation")
+    if rate:
+        from .rates import delta, label
+        kind = rate["kind"]
+        months = rate["reported_member_months"], rate["expected_member_months"]
+        lines.extend(["", f"## Rate reconciliation ({rate['unit']})", "",
+            f"- Reported: {label(rate['previous_reported'], kind)} -> {label(rate['current_reported'], kind)} "
+            f"({delta(rate['reported_change'], kind)})",
+            f"- Correct: {label(rate['previous_expected'], kind)} -> {label(rate['current_expected'], kind)}",
+            f"- Real change: {delta(rate['real_change'], kind)} ({delta(rate['real_change_from_numerator'], kind)} from the numerator, "
+            f"{delta(rate['real_change_from_enrollment'], kind)} from enrollment)",
+            f"- Reporting error: {delta(rate['reporting_error'], kind)} ({delta(rate['error_from_numerator'], kind)} from the numerator, "
+            f"{delta(rate['error_from_denominator'], kind)} from the denominator)",
+            f"- Member months, current snapshot: reported {months[0]['current']:,}, correct {months[1]['current']:,} "
+            f"({rate['affected_member_month_count']:,} member months differ, {rate['denominator_evidence_id']})"])
+        if report.get("denominator_replay"):
+            lines.extend(["", "| Denominator SQL | Snapshot | Member months | Evidence |", "| --- | --- | ---: | --- |"])
+            for row in report["denominator_replay"]:
+                lines.append(f"| {row['sql_version']} | {row['snapshot']} | {row['member_months']:,} | {row['evidence_id']} |")
     lines.extend(["", "## SQL and data replay", "",
                   "| SQL version | Snapshot | Revenue (USD) | Rows | Evidence |",
                   "| --- | --- | ---: | ---: | --- |"])
@@ -106,6 +125,12 @@ def markdown_report(report):
         validation = report["validation"]
         lines.extend(["", "## Independent check", "", f"Verified: {validation['verified']}",
                       "", validation["reason"]])
+    if report.get("denominator_correction_sql"):
+        sql = report["denominator_correction_sql"].replace("```", "` ` `")
+        lines.extend(["", "## Candidate denominator SQL", "", "```sql", sql, "```"])
+    if report.get("denominator_validation"):
+        check = report["denominator_validation"]
+        lines.extend(["", "## Independent denominator check", "", f"Verified: {check['verified']}", "", check["reason"]])
     steps = [e for e in report.get("events") or [] if e.get("type") == "tool_call"]
     if steps:
         lines.extend(["", "## How the agent investigated", ""])
@@ -114,6 +139,7 @@ def markdown_report(report):
             result = results.get(step.get("call_id"), {})
             outcome = result.get("evidence_id") or ("rejected: " + str(result.get("error"))[:80] if "error" in result else "")
             label = {"query_snapshot": "Query", "verify_correction": "Verify fix",
+                     "verify_denominator": "Verify denominator",
                      "request_clarification": "Asked the analyst"}.get(step.get("tool"), step.get("tool"))
             detail = step.get("purpose") or step.get("question") or ""
             lines.append(f"{number}. **{label}**: {detail}" + (f" ({outcome})" if outcome else ""))

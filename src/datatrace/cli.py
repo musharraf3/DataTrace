@@ -27,6 +27,8 @@ def main(argv=None):
     sample = commands.add_parser("sample", help="Create a reusable incident input template.")
     sample.add_argument("--family", choices=["duplicate_join", "dropped_records", "date_filter", "growth", "ambiguous"], default="duplicate_join")
     sample.add_argument("--realistic", choices=list(SCENARIOS), help="Write a ~4k-order realistic incident instead.")
+    sample.add_argument("--rate", choices=["pmpm_coverage_lines", "utilization_coverage_lines", "pmpm_runout_growth"],
+                        help="Write a CMS claims rate incident (PMPM or admissions per 1,000) instead.")
     sample.add_argument("--output", default="incident.json")
     run = commands.add_parser("investigate", help="Investigate an incident JSON bundle.")
     run.add_argument("incident")
@@ -48,7 +50,11 @@ def main(argv=None):
         if args.command == "sample":
             destination = Path(args.output)
             destination.parent.mkdir(parents=True, exist_ok=True)
-            incident = make_realistic_case(args.realistic) if args.realistic else make_case(args.family)
+            if args.rate:
+                from .healthcare import make_rate_case
+                incident = make_rate_case(args.rate)
+            else:
+                incident = make_realistic_case(args.realistic) if args.realistic else make_case(args.family)
             destination.write_text(json.dumps(bundle_dict(incident), indent=2), encoding="utf-8")
             print(f"Created {destination}")
             return

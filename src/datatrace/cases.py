@@ -15,6 +15,8 @@ class Incident:
     expected_classification: str
     family: str
     domain: str = "revenue"
+    previous_denominator_sql: str | None = None   # rate metrics only
+    current_denominator_sql: str | None = None
 
     def public_context(self):
         from .domains import get
@@ -23,7 +25,7 @@ class Incident:
         contract["status"] = d.status(contract["status"])
         contract["grain"] = f"one row per {d.key}"
         contract["customer_coverage"] = f"all {d.items}, including unmatched {d.member_noun}s"
-        return {
+        context = {
             "incident": self.description,
             "domain": d.name,
             "metric_contract": contract,
@@ -39,6 +41,22 @@ class Incident:
             "snapshots": ["previous", "current"],
             "sql_dialect": f"SQLite; metric queries return {d.key}, {d.value} rows (integer cents)",
         }
+        if "rate" in contract:
+            from .rates import RATE_KINDS, window_months
+            kind = contract["rate"]["kind"]
+            context["schema"][d.enroll] = [f"{d.member} INTEGER", f"{d.month} TEXT", f"{d.line} TEXT"]
+            context["previous_denominator_sql"] = self.previous_denominator_sql
+            context["current_denominator_sql"] = self.current_denominator_sql
+            context["rate_metric"] = {
+                "kind": kind, "meaning": RATE_KINDS[kind],
+                "numerator": f"the metric SQL rows ({d.key}, {d.value})" + (
+                    f"; utilisation counts those {d.items}" if kind == "per_1000" else ""),
+                "denominator": f"member months: one row per distinct ({d.member}, {d.month}) in "
+                               f"{', '.join(window_months(contract))}, from {d.enroll}",
+                "formula": "paid cents / member months" if kind == "pmpm" else "claims x 12,000 / member months",
+            }
+            context["sql_dialect"] += f"; denominator queries return {d.member}, {d.month} rows (one per member month)"
+        return context
 
 
 def canonical_sql(contract, domain=None):

@@ -17,7 +17,7 @@ from .investigator import offline_walkthrough
 from .meta import MetaClient, investigate_meta, investigate_baseline
 from .reporting import estimate_cost
 
-SPLITS = ["development", "stress", "realistic", "scale", "healthcare"]
+SPLITS = ["development", "stress", "realistic", "scale", "healthcare", "rates"]
 
 
 def split_cases(split):
@@ -33,6 +33,9 @@ def split_cases(split):
     if split == "healthcare":
         from .healthcare import healthcare_cases
         return healthcare_cases()
+    if split == "rates":
+        from .healthcare import rate_cases
+        return rate_cases()
     raise ValueError("Unknown evaluation split.")
 
 
@@ -42,7 +45,11 @@ def _run_case(case, mode, client, review):
         report = (offline_walkthrough(case) if mode == "offline" else
                   investigate_meta(case, client=client, review=review) if mode == "meta" else
                   investigate_baseline(case, client=client))
-        repair = report.get("correction_sql") is not None
+        repair = report.get("correction_sql") is not None or report.get("denominator_correction_sql") is not None
+        verified = (report.get("validation") or {}).get("verified", False)
+        if report.get("denominator_correction_sql"):  # Rate metrics: the denominator fix must verify too.
+            verified = (report.get("denominator_validation") or {}).get("verified", False) and (
+                verified or report.get("correction_sql") is None)
         attempted = report.get("model_correction_sql", report.get("correction_sql")) is not None
         paused = report.get("status") == "needs_clarification"
         raw = "insufficient_evidence" if paused else report.get("model_classification")
@@ -53,7 +60,7 @@ def _run_case(case, mode, client, review):
                 "raw_model_correct": raw == case.expected_classification if mode != "offline" else None,
                 "clarification_requested": paused,
                 "inappropriate_repair": attempted and case.family.endswith(("growth", "ambiguous", "refund_policy")),
-                "repair_verified": (report.get("validation") or {}).get("verified", False),
+                "repair_verified": verified,
                 "repair_needed": case.expected_classification in {"calculation_defect", "mixed_change"},
                 "review_verdict": (report.get("review") or {}).get("verdict"),
                 "revised_after_review": len(report.get("review_history") or []) > 1,
