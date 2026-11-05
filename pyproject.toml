@@ -14,6 +14,7 @@ datatrace = "datatrace.cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=7,<9"]
+warehouse = ["duckdb>=1.1,<2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

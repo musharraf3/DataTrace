@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install -e '.[dev]'
+      - run: python -m pip install -e '.[dev,warehouse]'
       - run: python -m pytest -q
         env:
           DATATRACE_SKIP_DOTENV: "1"
@@ -21,3 +21,5 @@ jobs:
       - run: python -m datatrace.evaluate --mode offline --split realistic --output artifacts/realistic-evaluation.json
       - run: python -m datatrace sample --output artifacts/incident.json
       - run: python -m datatrace investigate artifacts/incident.json --output-dir artifacts/cli-report
+      - run: python -m datatrace warehouse artifacts/warehouse/spec.json --db artifacts/warehouse/claims.duckdb --write-demo --output artifacts/warehouse/incident.json
+      - run: python -m datatrace investigate artifacts/warehouse/incident.json --output-dir artifacts/warehouse-report
